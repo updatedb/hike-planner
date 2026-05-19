@@ -1,0 +1,7 @@
+{
+  "ownerId": "kn73h0b3vxspe7143ad7dk07xn822pwv",
+  "slug": "hike-planner",
+  "version": "0.1.0",
+  "description": "一站式徒步出行规划：路线搜索、交通/酒店查询、人文信息收集、计划生成、地图渲染、行中记录、行后汇总",
+  "keywords": ["hiking", "trip", "travel", "planner", "route", "transportation", "map"]
+}
