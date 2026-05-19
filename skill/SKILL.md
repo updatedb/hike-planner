@@ -1,6 +1,6 @@
 ---
 name: hike-planner
-description: 一站式徒步出行规划。输入目的地和日期，10分钟内生成含大交通、酒店、路线、人文的完整计划。多源交叉验证（12306/两步路/高德/小红书），行中记录与行后汇总。只查不买。
+description: 一站式徒步出行规划。输入目的地和日期，10分钟内生成含大交通、酒店、路线、人文的完整计划。多源交叉验证（12306/两步路/高德/小红书/GPX文件）。出发前根据酒店机票火车票短信自动修定行程，出发后根据实际情况记录修改行程。只查不买。
 ---
 
 # hike-planner
@@ -93,17 +93,12 @@ Agent 交互收集需求后，自动执行搜索与生成。以「古蜀道 5/13
 
 | 依赖 | 用途 | 安装 |
 |------|------|------|
+| `12306-train-assistant` | 火车票余票/价格/时刻查询 | `npx clawhub install 12306-train-assistant` |
 | `amap-lbs-skill` | 距离/路线/地图 | `npx clawhub install amap-lbs-skill` |
+| `flyai` | 机票/酒店查询 | `npx clawhub install flyai`（安装后需到 [open.fly.ai](https://open.fly.ai/console) 获取 API Key） |
 | `xiaohongshu` | 小红书攻略搜索（需先登录） | `npx clawhub install xiaohongshu` |
 
-以下为自定义脚本依赖（非 ClawHub Skill），需用户自行部署到本地：
-
-| 依赖 | 用途 | 位置 |
-|------|------|------|
-| `12306-train-assistant` | 火车票查询 | `~/travel/skills/12306-train-assistant/client.py` |
-| `flyai` | 机票/酒店查询 | `npx @fly-ai/flyai-cli` |
-
-> 💡 hike-init 时会检测依赖可用性。缺失时提示："检测到 XX 未安装，是否现在安装？"（ClawHub Skill 可自动安装，自定义脚本需手动部署）
+> 💡 hike-init 时会检测依赖可用性。缺失时提示："检测到 XX 未安装，是否现在安装？"（可自动安装）
 
 **不可用时的保底**：
 
