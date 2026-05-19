@@ -89,22 +89,29 @@ Agent 交互收集需求后，自动执行搜索与生成。以「古蜀道 5/13
 
 ## 外部依赖
 
-| 依赖 | 用途 | 不可用时 |
-|------|------|---------|
-| `12306-train-assistant` | 火车票查询 | 手动输入车次 |
-| `amap-lbs-skill` | 距离/路线/地图 | 手动输入 / 跳过地图 |
-| `flyai` | 机票/酒店查询 | web_search |
-| `xiaohongshu` | 小红书攻略 | web_search + Wikipedia |
+以下 Skill 为可选依赖。hike-init 启动时自动检测，若未安装则提示用户。
 
-## 容错
+| 依赖 | 用途 | 安装 |
+|------|------|------|
+| `amap-lbs-skill` | 距离/路线/地图 | `npx clawhub install amap-lbs-skill` |
+| `xiaohongshu` | 小红书攻略搜索（需先登录） | `npx clawhub install xiaohongshu` |
+
+以下为自定义脚本依赖（非 ClawHub Skill），需用户自行部署到本地：
+
+| 依赖 | 用途 | 位置 |
+|------|------|------|
+| `12306-train-assistant` | 火车票查询 | `~/travel/skills/12306-train-assistant/client.py` |
+| `flyai` | 机票/酒店查询 | `npx @fly-ai/flyai-cli` |
+
+> 💡 hike-init 时会检测依赖可用性。缺失时提示："检测到 XX 未安装，是否现在安装？"（ClawHub Skill 可自动安装，自定义脚本需手动部署）
+
+**不可用时的保底**：
 
 | 场景 | 处理 |
 |------|------|
-| 搜不到徒步路线 | 建议上传 GPX，或转为通用旅行规划 |
-| 两步路空结果 | 其他徒步网站 + 建议上传 GPX |
-| 火车票无余票 | 列出替代车次 |
-| 酒店无可用房 | 扩大搜索 + web_search |
-| 缺高德 Key | 跳过地图，纯文字输出 |
+| 铁路 / 机票 / 酒店查询不可用 | 用户手动输入车次/航班/酒店信息 |
+| 高德地图不可用 | 跳过地图，纯文字输出 |
+| 小红书不可用 | web_search + Wikipedia 替代 |
 
 ## 不做
 
