@@ -54,12 +54,14 @@ const DEVIATION_THRESHOLDS = {
 const SMS_PATTERNS = {
   // 12306 火车票订单短信
   // "您的订单D2008，成都东07:50-剑门关09:21，二等座01车02A号，订单E123456789"
-  // 也匹配: "订单号E123456789，车次D2008，成都东07:50-剑门关09:21，二等座01车02A号"
+  // "订单号E123456789，车次D2008，成都东07:50-剑门关09:21，二等座01车02A号"
   train: [
-    // 模式1: 车次 + 出发站时间-到达站时间 + 座位 + 订单号
-    /车次\s*([GCKDTZYL]\d+).*?([\u4e00-\u9fa5]+?(?:站)?)\s*(\d{1,2}:\d{2})\s*[-—~至到]\s*([\u4e00-\u9fa5]+?(?:站)?)\s*(\d{1,2}:\d{2}).*?([\u4e00-\u9fa5]+座?(?:\d+车\d+[号座]\w?)?).*?订单[号编]?\s*([A-Za-z0-9]+)/,
-    // 模式2: 订单号 + 车次 变体
-    /订单[号编]?\s*([A-Za-z0-9]+).*?车次\s*([GCKDTZYL]\d+).*?([\u4e00-\u9fa5]+?(?:站)?)\s*(\d{1,2}:\d{2})\s*[-—~至到]\s*([\u4e00-\u9fa5]+?(?:站)?)\s*(\d{1,2}:\d{2}).*?([\u4e00-\u9fa5]+座)/,
+    // 模式1: 订单+车次号 直接格式（12306 常见：您的订单D2008，成都东07:50-剑门关09:21，二等座...）
+    /订单\s*([GCKDTZYL]\d+)(?:次)?[，,、\s]*([\u4e00-\u9fa5]+?(?:东|南|西|北|关|桥|口|岭|站)?)\s*(\d{1,2}:\d{2})[-—~至到]\s*([\u4e00-\u9fa5]+?(?:东|南|西|北|关|桥|口|岭|站)?)\s*(\d{1,2}:\d{2})[，,、\s]*([\u4e00-\u9fa5]+座\d*车?\d*[号座FABC]?\d*).*?订单[号编]?\s*([A-Za-z0-9]+)/,
+    // 模式2: 车次 + 出发站时间-到达站时间 + 座位 + 订单号
+    /车次\s*([GCKDTZYL]\d+).*?([\u4e00-\u9fa5]+?(?:东|南|西|北|关|桥|口|岭|站)?)\s*(\d{1,2}:\d{2})\s*[-—~至到]\s*([\u4e00-\u9fa5]+?(?:东|南|西|北|关|桥|口|岭|站)?)\s*(\d{1,2}:\d{2}).*?([\u4e00-\u9fa5]+座?(?:\d+车\d+[号座FABC]?\d*)?).*?订单[号编]?\s*([A-Za-z0-9]+)/,
+    // 模式3: 订单号 + 车次 变体
+    /订单[号编]?\s*([A-Za-z0-9]+).*?车次\s*([GCKDTZYL]\d+).*?([\u4e00-\u9fa5]+?(?:东|南|西|北|关|桥|口|岭|站)?)\s*(\d{1,2}:\d{2})\s*[-—~至到]\s*([\u4e00-\u9fa5]+?(?:东|南|西|北|关|桥|口|岭|站)?)\s*(\d{1,2}:\d{2}).*?([\u4e00-\u9fa5]+座)/,
   ],
   // 航司/机票订单短信
   // "航班CA1234，北京-成都，2026-05-13 08:00-10:30，经济舱，订单FL9876543"
@@ -661,11 +663,14 @@ function parseOrderSMS(text) {
         const groups = m.slice(1);
         // 统一提取顺序: carNum, fromSta, fromTime, toSta, toTime, seat, orderId
         let carNum, fromSta, fromTime, toSta, toTime, seat, orderId;
-        if (pattern.source.startsWith('车次')) {
-          // 模式1: 车次 + 出发站时间-到达站时间 + 座位 + 订单号
+        if (pattern.source.startsWith('订单\\s*')) {
+          // 模式1（新）: 订单+车次号 直接格式 → carNum, fromSta, fromTime, toSta, toTime, seat, orderId
+          [carNum, fromSta, fromTime, toSta, toTime, seat, orderId] = groups;
+        } else if (pattern.source.startsWith('车次')) {
+          // 模式2: 车次 + 出发站时间-到达站时间 + 座位 + 订单号
           [carNum, fromSta, fromTime, toSta, toTime, seat, orderId] = groups;
         } else {
-          // 模式2: 订单号 + 车次 变体
+          // 模式3: 订单号 + 车次 变体
           [orderId, carNum, fromSta, fromTime, toSta, toTime, seat] = groups;
         }
         // 清理站名
@@ -867,7 +872,7 @@ function applySMSToTrip(trip, sms) {
         name: data.hotelName,
         detail: `${data.roomType}`,
         cost: null,
-        remark: `${i === 0 ? `入住${data.checkIn}，` : ''}退房${data.checkOut}，订单${data.orderId}${i > 0 ? '（续住）' : ''}${/含.*[早双]/.test(text) ? '，含早' : ''}`,
+        remark: `${i === 0 ? `入住${data.checkIn}，` : ''}退房${data.checkOut}，订单${data.orderId}${i > 0 ? '（续住）' : ''}${/含.*[早双]/.test(data.raw || '') ? '，含早' : ''}`,
         actualStatus: null,
         actualTime: null,
         actualCost: null,
@@ -1245,6 +1250,23 @@ function cmdSummary(tripId) {
   const routeChanges = trip.logs.filter(l => l.text.includes('路线变更') || l.text.includes('绕路'));
   const allNotes = trip.logs.map(l => `- ${l.date} ${l.text}`);
 
+  // 节点状态统计
+  const allNodes = trip.days.flatMap(d => d.nodes);
+  const nodeStats = {
+    total: allNodes.length,
+    completed: allNodes.filter(n => n.actualStatus === NODE_STATUS.COMPLETED).length,
+    changed: allNodes.filter(n => n.actualStatus === NODE_STATUS.CHANGED).length,
+    skipped: allNodes.filter(n => n.actualStatus === NODE_STATUS.SKIPPED).length,
+    pending: allNodes.filter(n => n.actualStatus === NODE_STATUS.PENDING).length,
+  };
+
+  // 订单确认汇总
+  const orderSummary = trip.orderConfirmations.map(o => ({
+    type: o.type,
+    orderId: o.orderId,
+    timestamp: o.timestamp,
+  }));
+
   // 更新状态为完成（提前设置，确保 summary.status 显示 COMPLETED）
   trip.status = STATUS.COMPLETED;
   trip.updatedAt = new Date().toISOString();
@@ -1272,6 +1294,12 @@ function cmdSummary(tripId) {
     hiking: {
       plannedRoutes: trip.hikingRoutes.length,
       plannedDistance: trip.hikingRoutes.reduce((s, r) => s + (r.distance || 0), 0),
+    },
+    nodes: nodeStats,                       // 节点执行状态汇总
+    orderConfirmations: orderSummary,       // 订单确认汇总
+    deviations: {
+      total: trip.actuals.deviations.length,
+      alerts: trip.actuals.deviations.filter(d => d.alert),
     },
     logs: {
       total: trip.logs.length,
@@ -1474,6 +1502,7 @@ function renderPlanReadme(trip) {
 module.exports = {
   // 常量
   STATUS,
+  NODE_STATUS,
   DEFAULT_OUTPUT_DIR,
 
   // 5 条主命令
@@ -1495,6 +1524,12 @@ module.exports = {
   cmdConfirm,
   cmdActivate,
   cmdGeneratePlan,
+
+  // 新增：订单短信解析 + 实时行程修订
+  cmdSetNodeStatus,
+  parseOrderSMS,
+  applySMSToTrip,
+  compareActualVsPlan,
 
   // 工具函数
   getOutputDir,
