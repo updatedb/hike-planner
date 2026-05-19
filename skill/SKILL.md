@@ -1,3 +1,9 @@
+---
+name: hike-planner
+description: >-
+  一站式徒步出行规划 Skill。为普通旅行者生成完整出行方案，覆盖路线搜索（两步路+小红书+B站）、交通查询（12306火车票/flyai机票）、酒店查询、人文信息收集（Wikipedia+诗词+美食）、计划文档生成（PLAN_TEMPLATE格式）、高德地图渲染、行中记录与行后汇总。5 条命令：hike-init / hike-status / hike-today / hike-log / hike-summary。只查不买，外部依赖不可用时自动降级为手动输入。触发场景：用户想规划徒步出行、搜索徒步路线、查询火车票/机票/酒店、生成旅行计划、记录行程实际数据、汇总旅行成果。
+---
+
 # hike-planner Skill — 徒步出行规划
 
 > Keywords: 徒步 / hiking / 旅行规划 / trip planner / 路线搜索 / 交通查询 / 人文介绍 / 地图渲染
