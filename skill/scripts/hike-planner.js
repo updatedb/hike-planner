@@ -79,6 +79,120 @@ const SMS_PATTERNS = {
   ],
 };
 
+// ── 节点类型 → 路线类型映射（地图渲染用） ────────────
+// 高德地图支持的路线类型: driving / walking / riding / transfer / straight
+
+const NODE_ROUTE_TYPE = {
+  // 徒步/登山 → walking（步行导航，仅用于短距连续段）
+  hiking: 'walking',
+  // 包车/出租/自驾 → driving
+  taxi: 'driving',
+  car: 'driving',
+  selfdrive: 'driving',
+  // 公交/大巴 → driving（高德无公交专用路线，remark 标注实际方式）
+  bus: 'driving',
+  // 火车/飞机 → straight（直线，remark 标注实际方式）
+  train: 'straight',
+  flight: 'straight',
+  // 地铁 → transfer
+  metro: 'transfer',
+  // 默认: driving
+};
+
+const DEFAULT_ROUTE_TYPE = 'driving';
+
+/**
+ * 获取节点的路线类型（用于地图渲染）
+ */
+function getNodeRouteType(node) {
+  return NODE_ROUTE_TYPE[node.type] || DEFAULT_ROUTE_TYPE;
+}
+
+/**
+ * 获取节点的交通标签（用于时间线展示）
+ * 徒步节点 → "🥾 徒步"
+ * taxi/car → "🚗 包车"
+ * bus → "🚌 公交"
+ * train → "🚄 火车"
+ * flight → "✈️ 飞机"
+ * metro → "🚇 地铁"
+ */
+function getNodeTransportLabel(node) {
+  const labelMap = {
+    hiking: '🥾 徒步',
+    taxi: '🚗 包车',
+    car: '🚗 自驾',
+    selfdrive: '🚗 自驾',
+    bus: '🚌 公交',
+    train: '🚄 火车',
+    flight: '✈️ 飞机',
+    metro: '🚇 地铁',
+    hotel: '🏨 入住',
+    food: '🍴 餐饮',
+    rest: '💤 休息',
+    sightseeing: '📸 游览',
+    other: '📍 其他',
+  };
+  return labelMap[node.type] || `📍 ${node.type || '其他'}`;
+}
+
+/**
+ * 为某一天的节点生成路线类型列表（逗号分隔），供地图渲染脚本使用
+ * 在相邻节点间生成一段路线，根据两个节点的类型决定路线类型：
+ * - 如果前后都是 hiking 节点 → walking
+ * - 包车/出租/自驾之间 → driving
+ * - 火车/飞机到达后到下一节点之间 → driving（接驳段）
+ * - 火车/飞机出发前的节点 → driving（送站段）
+ *
+ * @returns {object} { routeTypes: string, segments: [{from,to,routeType}] }
+ */
+function getRouteTypesForDay(day) {
+  const nodes = day.nodes;
+  if (nodes.length < 2) return { routeTypes: '', segments: [] };
+
+  const segments = [];
+  for (let i = 0; i < nodes.length - 1; i++) {
+    const a = nodes[i];
+    const b = nodes[i + 1];
+    let routeType = DEFAULT_ROUTE_TYPE;
+
+    // 如果两端都是徒步 → walking
+    if (a.type === 'hiking' && b.type === 'hiking') {
+      routeType = 'walking';
+    }
+    // 如果任一端是徒步（开始/结束徒步的接驳段）→ driving
+    else if (a.type === 'hiking' || b.type === 'hiking') {
+      routeType = 'driving';
+    }
+    // 火车/飞机段 → straight
+    else if ((a.type === 'train' || a.type === 'flight') &&
+             (b.type === 'train' || b.type === 'flight')) {
+      routeType = 'straight';
+    }
+    // 从火车/飞机下来后 → driving（接驳）
+    else if (a.type === 'train' || a.type === 'flight') {
+      routeType = 'driving';
+    }
+    // 去往火车/飞机前 → driving（送站）
+    else if (b.type === 'train' || b.type === 'flight') {
+      routeType = 'driving';
+    }
+    // 其他按节点类型
+    else {
+      routeType = getNodeRouteType(a) === 'walking' ? 'walking' : getNodeRouteType(a);
+    }
+
+    segments.push({
+      from: a.name,
+      to: b.name,
+      routeType: routeType,
+    });
+  }
+
+  const routeTypes = segments.map(s => s.routeType).join(',');
+  return { routeTypes, segments };
+}
+
 // ── 工具函数 ──────────────────────────────────────────
 
 function getOutputDir(options) {
@@ -763,17 +877,13 @@ function applySMSToTrip(trip, sms) {
       matchedDay = trip.days.find(d => d.nodes.some(n => n.type === 'train'));
     }
 
-    // 构建节点数据
+    // 构建节点数据（不覆盖已有 cost）
     const nodeData = {
       time: `${data.fromTime}-${data.toTime}`,
       type: 'train',
       name: `${data.fromSta}→${data.toSta}`,
       detail: data.carNum,
-      cost: null,  // SMS 通常不含价格，由用户后续补充
       remark: `${data.seat}，订单${data.orderId}`,
-      actualStatus: null,
-      actualTime: null,
-      actualCost: null,
     };
 
     if (matchedDay) {
@@ -815,11 +925,7 @@ function applySMSToTrip(trip, sms) {
       type: 'flight',
       name: `${data.fromCity}→${data.toCity}`,
       detail: data.flightNum,
-      cost: null,
       remark: `${data.seat}，订单${data.orderId}`,
-      actualStatus: null,
-      actualTime: null,
-      actualCost: null,
     };
 
     if (matchedDay) {
@@ -871,11 +977,7 @@ function applySMSToTrip(trip, sms) {
         type: 'hotel',
         name: data.hotelName,
         detail: `${data.roomType}`,
-        cost: null,
         remark: `${i === 0 ? `入住${data.checkIn}，` : ''}退房${data.checkOut}，订单${data.orderId}${i > 0 ? '（续住）' : ''}${/含.*[早双]/.test(data.raw || '') ? '，含早' : ''}`,
-        actualStatus: null,
-        actualTime: null,
-        actualCost: null,
       };
 
       const existingIdx = day.nodes.findIndex(
@@ -1131,8 +1233,15 @@ function cmdLog(text, dateStr) {
     if (costMatch) {
       logEntry.costOverrun = parseFloat(costMatch[1]);
     }
-    // 花了 / 用了 ¥XX
-    const spentMatch = text.match(/(?:[花用]了)\s*(\d+(?:\.\d{1,2})?)\s*(?:块|元|¥)/);
+    // 新增: "实际多花了 ¥X" 模式 (¥在数字前)
+    if (!logEntry.costOverrun) {
+      const extraCostMatch = text.match(/实际多[花用了]了?\s*¥\s*(\d+(?:\.\d{1,2})?)/);
+      if (extraCostMatch) {
+        logEntry.costOverrun = parseFloat(extraCostMatch[1]);
+      }
+    }
+    // 花了 / 用了 ¥XX（排除「多花/额外花」避免与 costOverrun 冲突）
+    const spentMatch = text.match(/(?<!多)(?<!额外)(?:[花用]了)\s*(\d+(?:\.\d{1,2})?)\s*(?:块|元|¥)/);
     if (spentMatch && !actualCostMatch) {
       actualCost = parseFloat(spentMatch[1]);
     }
@@ -1176,13 +1285,29 @@ function cmdLog(text, dateStr) {
       }
     }
 
-    // 如果没匹配到但有实际数据，默认匹配第一个交通/徒步节点
-    if (matchedNodeIndex === -1 && (actualTime || actualCost != null)) {
+    // 如果没匹配到但有实际数据或偏差，默认匹配第一个交通/徒步节点
+    if (matchedNodeIndex === -1 && (actualTime || actualCost != null || logEntry.delayMinutes || logEntry.costOverrun)) {
       matchedNodeIndex = 0;
     }
 
-    if (matchedNodeIndex >= 0 && (actualTime || actualCost != null || detectedStatus)) {
+    if (matchedNodeIndex >= 0 && (actualTime || actualCost != null || detectedStatus || logEntry.delayMinutes || logEntry.costOverrun)) {
       const node = todayDay.nodes[matchedNodeIndex];
+
+      // 从 delayMinutes 推导 actualTime
+      if (!actualTime && logEntry.delayMinutes && node.time) {
+        const plannedMinutes = parseTimeToMinutes(node.time);
+        if (plannedMinutes != null) {
+          const delayedMinutes = plannedMinutes + logEntry.delayMinutes;
+          const h = Math.floor(delayedMinutes / 60);
+          const m = delayedMinutes % 60;
+          actualTime = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+        }
+      }
+
+      // 从 costOverrun 推导 actualCost
+      if (actualCost == null && logEntry.costOverrun != null && node.cost != null) {
+        actualCost = node.cost + logEntry.costOverrun;
+      }
 
       // 更新 actual 数据
       if (actualTime) {
@@ -1367,7 +1492,8 @@ function renderPlanReadme(trip) {
   lines.push('| 日期 | 星期 | 行程概要 | 出行方式 | 班次/车牌 | 住宿酒店 | 含早 | 天气 |');
   lines.push('|------|------|---------|---------|---------|---------|------|------|');
   for (const day of trip.days) {
-    const transport = day.nodes.filter(n => ['train', 'flight', 'bus', 'taxi'].includes(n.type)).map(n => n.type === 'train' ? '🚄' : n.type === 'flight' ? '✈️' : n.type === 'taxi' ? '🚗' : '🚌').join('') || '';
+    const transportNodes = day.nodes.filter(n => ['train', 'flight', 'bus', 'taxi', 'car', 'selfdrive', 'metro', 'hiking'].includes(n.type));
+    const transport = transportNodes.map(n => getNodeTransportLabel(n)).join(' ') || '';
     const schedule = day.nodes.filter(n => ['train', 'flight', 'bus'].includes(n.type)).map(n => n.detail).join(', ') || '';
     const hotel = day.nodes.find(n => n.type === 'hotel');
     const hotelName = hotel ? hotel.name : '';
@@ -1392,9 +1518,10 @@ function renderPlanReadme(trip) {
       lines.push('|------|------|---------|------|------|');
       for (const node of day.nodes) {
         const costStr = node.cost != null ? `¥${node.cost}` : '';
-        const typeIcon = node.type === 'hiking' ? '🥾 ' : node.type === 'train' ? '🚄 ' : node.type === 'flight' ? '✈️ ' : node.type === 'taxi' ? '🚗 ' : node.type === 'bus' ? '🚌 ' : node.type === 'metro' ? '🚇 ' : '';
-        const name = node.type === 'hiking' ? `${typeIcon}${node.name}，${node.detail}` : `${typeIcon}${node.name}`;
-        lines.push(`| ${node.time} | ${node.type === 'hiking' ? '🥾 徒步' : node.type === 'hotel' ? '入住' : node.type === 'food' ? '餐饮' : '交通接驳'} | ${name} | ${costStr} | ${node.remark} |`);
+        const transportLabel = getNodeTransportLabel(node);
+        const isHiking = node.type === 'hiking';
+        const name = isHiking ? `${node.name}，${node.detail}` : node.name;
+        lines.push(`| ${node.time} | ${transportLabel} | ${name} | ${costStr} | ${node.remark} |`);
       }
     }
     lines.push('');
@@ -1530,6 +1657,12 @@ module.exports = {
   parseOrderSMS,
   applySMSToTrip,
   compareActualVsPlan,
+
+  // 新增：节点类型 → 路线类型映射（地图渲染）
+  NODE_ROUTE_TYPE,
+  getNodeRouteType,
+  getNodeTransportLabel,
+  getRouteTypesForDay,
 
   // 工具函数
   getOutputDir,
