@@ -1,10 +1,10 @@
 /**
  * hike-planner.js — State Machine + Command Handlers
  *
- * 6 条主命令：cmdInit / cmdStatus / cmdToday / cmdLog / cmdList / cmdSet
+ * 5 条主命令：cmdInit / cmdStatus / cmdToday / cmdLog / cmdSummary
  * Agent 通过 module.exports 调用各函数，逐步填充 TripPlan，最终生成 README.md。
  *
- * v0.3.0
+ * v0.1.0 — 初始版本
  */
 
 const fs = require('fs');
@@ -16,8 +16,6 @@ const os = require('os');
 const DEFAULT_OUTPUT_DIR = path.join(__dirname, '..', 'planner');
 const STATE_FILE_NAME = '.hike-planner-state.json';
 const TEMPLATE_NAME = 'PLAN_TEMPLATE.md';
-const CONFIG_DIR = path.join(os.homedir(), '.hike-planner');
-const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
 
 const STATUS = {
   IDLE: 'IDLE',
@@ -197,29 +195,8 @@ function getRouteTypesForDay(day) {
 
 // ── 工具函数 ──────────────────────────────────────────
 
-function loadConfig() {
-  try {
-    if (fs.existsSync(CONFIG_FILE)) {
-      return JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
-    }
-  } catch (e) {
-    // ignore
-  }
-  return {};
-}
-
-function saveConfig(config) {
-  if (!fs.existsSync(CONFIG_DIR)) {
-    fs.mkdirSync(CONFIG_DIR, { recursive: true });
-  }
-  fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), 'utf8');
-}
-
 function getOutputDir(options) {
-  // 优先级：options.outputDir > hike-set 保存的 > HIKE_PLANNER_OUTPUT_DIR env > DEFAULT_OUTPUT_DIR
   if (options && options.outputDir) return options.outputDir;
-  const config = loadConfig();
-  if (config.outputDir) return config.outputDir;
   if (process.env.HIKE_PLANNER_OUTPUT_DIR) return process.env.HIKE_PLANNER_OUTPUT_DIR;
   return DEFAULT_OUTPUT_DIR;
 }
@@ -1385,79 +1362,12 @@ function cmdLog(text, dateStr) {
   return result;
 }
 
-// ── 命令：hike-list ───────────────────────────────────
+// ── 命令：hike-summary ────────────────────────────────
 
-const INCOMPLETE_STATUSES = [STATUS.PLANNING, STATUS.CONFIRMED, STATUS.ACTIVE];
-
-/**
- * 列出所有未完成的行程（status 为 PLANNING/CONFIRMED/ACTIVE）。
- * 传入 tripId 则对该行程做完整汇总+归档（原 hike-summary 逻辑）。
- * @param {string} [tripId] - 可选，归档指定行程
- */
-function cmdList(tripId) {
-  const outputDir = getOutputDir();
-  const state = loadState(outputDir);
-
-  // ── 指定 tripId：完整汇总 + 归档（原 hike-summary 逻辑） ──
-  if (tripId) {
-    return cmdListArchive(state, tripId);
-  }
-
-  // ── 无参数：列出所有未完成的行程 ──
-  const incompleteTrips = Object.entries(state.trips)
-    .filter(([, trip]) => INCOMPLETE_STATUSES.includes(trip.status))
-    .map(([id, trip]) => {
-      const totalDays = trip.days.length;
-      const plannedDays = trip.days.filter(d => d.nodes.length > 0).length;
-      const totalCost = trip.totalBudget || trip.days.reduce((s, d) => s + d.dayCost, 0);
-      const isActive = trip.tripId === state.activeTripId;
-
-      return {
-        tripId: id,
-        isActive,
-        destination: trip.destination,
-        status: trip.status,
-        dates: trip.dates,
-        progress: totalDays > 0 ? `${plannedDays}/${totalDays} 天已规划` : '未开始规划',
-        budget: totalCost,
-        hikingRoutes: trip.hikingRoutes.length,
-        logs: trip.logs.length,
-        createdAt: trip.createdAt,
-        updatedAt: trip.updatedAt,
-      };
-    });
-
-  if (incompleteTrips.length === 0) {
-    return {
-      trips: [],
-      total: 0,
-      message: '没有未完成的行程。输入 hike-init <目的地> 开始规划。',
-    };
-  }
-
-  // 统计
-  const totalTrips = Object.keys(state.trips).length;
-  const completedCount = totalTrips - incompleteTrips.length;
-
-  return {
-    trips: incompleteTrips,
-    total: incompleteTrips.length,
-    stats: {
-      totalTrips,
-      incomplete: incompleteTrips.length,
-      completed: completedCount,
-    },
-    activeTripId: state.activeTripId,
-    message: `共 ${incompleteTrips.length} 个未完成行程（总计 ${totalTrips} 个，已完成 ${completedCount} 个）`,
-  };
-}
-
-/**
- * 对指定 tripId 做完整汇总+归档（原 hike-summary 逻辑，hike-list <tripId> 时调用）
- */
-function cmdListArchive(state, tripId) {
-  const trip = state.trips[tripId];
-  if (!trip) return { error: `未找到行程「${tripId}」` };
+function cmdSummary(tripId) {
+  const state = loadState(getOutputDir());
+  const trip = getTrip(state, tripId);
+  if (!trip) return { error: '没有活动的行程' };
 
   // 汇总 logs
   const costOverruns = trip.logs.filter(l => l.costOverrun).reduce((s, l) => s + l.costOverrun, 0);
@@ -1482,12 +1392,10 @@ function cmdListArchive(state, tripId) {
     timestamp: o.timestamp,
   }));
 
-  // 更新状态为完成
+  // 更新状态为完成（提前设置，确保 summary.status 显示 COMPLETED）
   trip.status = STATUS.COMPLETED;
   trip.updatedAt = new Date().toISOString();
-  if (state.activeTripId === tripId) {
-    state.activeTripId = null;
-  }
+  state.activeTripId = null;
 
   // 汇总实际数据
   const summary = {
@@ -1512,8 +1420,8 @@ function cmdListArchive(state, tripId) {
       plannedRoutes: trip.hikingRoutes.length,
       plannedDistance: trip.hikingRoutes.reduce((s, r) => s + (r.distance || 0), 0),
     },
-    nodes: nodeStats,
-    orderConfirmations: orderSummary,
+    nodes: nodeStats,                       // 节点执行状态汇总
+    orderConfirmations: orderSummary,       // 订单确认汇总
     deviations: {
       total: trip.actuals.deviations.length,
       alerts: trip.actuals.deviations.filter(d => d.alert),
@@ -1530,45 +1438,6 @@ function cmdListArchive(state, tripId) {
   saveState(state, trip.outputDir);
 
   return summary;
-}
-
-// ── 命令：hike-set ───────────────────────────────────
-
-/**
- * 设置全局配置项。目前支持：
- *   hike-set outputDir <路径> — 设置默认输出目录，持久化到 ~/.hike-planner/config.json
- * @param {string} key - 配置项名称
- * @param {string} value - 配置值
- */
-function cmdSet(key, value) {
-  const supportedKeys = ['outputDir'];
-  if (!key || !supportedKeys.includes(key)) {
-    return { error: `不支持的配置项「${key}」，支持：${supportedKeys.join(', ')}` };
-  }
-  if (!value) {
-    return { error: `请提供 ${key} 的值，例如：hike-set outputDir /path/to/dir` };
-  }
-
-  const config = loadConfig();
-
-  if (key === 'outputDir') {
-    // 校验路径合法（存在或可创建）
-    const resolved = path.resolve(value);
-    const parent = path.dirname(resolved);
-    if (!fs.existsSync(parent)) {
-      return { error: `父目录不存在：${parent}` };
-    }
-    config.outputDir = resolved;
-    saveConfig(config);
-    return {
-      key: 'outputDir',
-      value: resolved,
-      configPath: CONFIG_FILE,
-      message: `默认输出目录已设置为：${resolved}`,
-    };
-  }
-
-  return { error: `未知错误` };
 }
 
 // ── 命令：生成 README.md ───────────────────────────────
@@ -1761,20 +1630,14 @@ module.exports = {
   // 常量
   STATUS,
   NODE_STATUS,
-  INCOMPLETE_STATUSES,
   DEFAULT_OUTPUT_DIR,
-  CONFIG_FILE,
 
-  // 6 条主命令
+  // 5 条主命令
   cmdInit,
   cmdStatus,
   cmdToday,
   cmdLog,
-  cmdList,
-  cmdSet,
-
-  // 汇总归档（hike-list <tripId>）
-  cmdListArchive,
+  cmdSummary,
 
   // 辅助命令（Agent 逐步填充）
   cmdSetRequirements,
@@ -1802,8 +1665,6 @@ module.exports = {
   getRouteTypesForDay,
 
   // 工具函数
-  loadConfig,
-  saveConfig,
   getOutputDir,
   generateTripId,
   formatDate,
