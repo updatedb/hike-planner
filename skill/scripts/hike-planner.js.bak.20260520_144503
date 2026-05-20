@@ -4,7 +4,7 @@
  * 6 条主命令：cmdInit / cmdStatus / cmdToday / cmdLog / cmdList / cmdSet
  * Agent 通过 module.exports 调用各函数，逐步填充 TripPlan，最终生成 README.md。
  *
- * v0.4.0
+ * v0.3.0
  */
 
 const fs = require('fs');
@@ -277,35 +277,6 @@ function loadState(outputDir) {
   return { status: STATUS.IDLE, trips: {} };
 }
 
-/**
- * 加载状态，优先使用配置的输出目录，若无活跃行程则回退到默认目录。
- * 保证 hike-select 切换输出目录后，cmdLog/cmdStatus/cmdToday 仍能找到之前创建的行程。
- */
-function loadStateWithFallback() {
-  const configuredDir = getOutputDir();
-  const state = loadState(configuredDir);
-  if (state.activeTripId && state.trips[state.activeTripId]) {
-    return { state, dir: configuredDir };
-  }
-  // 回退到默认目录
-  if (configuredDir !== DEFAULT_OUTPUT_DIR) {
-    const defaultState = loadState(DEFAULT_OUTPUT_DIR);
-    if (defaultState.activeTripId && defaultState.trips[defaultState.activeTripId]) {
-      return { state: defaultState, dir: DEFAULT_OUTPUT_DIR };
-    }
-    // 即使没有活跃行程，也合并两个目录的行程
-    if (Object.keys(defaultState.trips).length > 0) {
-      const merged = { ...defaultState };
-      for (const [id, trip] of Object.entries(state.trips)) {
-        if (!merged.trips[id]) merged.trips[id] = trip;
-      }
-      merged.activeTripId = merged.activeTripId || state.activeTripId;
-      return { state: merged, dir: configuredDir };
-    }
-  }
-  return { state, dir: configuredDir };
-}
-
 function saveState(state, outputDir) {
   const filePath = getStatePath(outputDir);
   const dir = path.dirname(filePath);
@@ -366,34 +337,12 @@ function createTripPlan(destination, options) {
 // ── 命令：hike-init ───────────────────────────────────
 
 /**
- * 初始化行程，日期/目的地/活动直接从参数解析。
- * 新格式：hike-init <startDate> <destination> <activity>
- * 示例：hike-init 2026-06-01 古蜀道 徒步+文化探访
- *
- * 向后兼容旧的 cmdInit(destination, options) 调用风格。
- *
- * @param {string} startDate - 出发日期 YYYY-MM-DD（必填）
- * @param {string} destination - 目的地（必填）
- * @param {string} activity - 活动描述，如 "徒步+文化探访"（必填）
- * @param {object} [options] - { outputDir }
- * @returns {object} { tripId, status, collectPrompt } — collectPrompt 仅含缺失的补充问题
+ * 初始化行程。返回 { tripId, status, collectPrompt } 供 Agent 交互式收集需求。
+ * @param {string} destination - 目的地
+ * @param {object} options - { outputDir }
  */
-function cmdInit(startDate, destination, activity, options) {
-  // ── 向后兼容：旧格式 cmdInit(destination, options) ──
-  // 情况1：destination 是 object → cmdInit(dest, {outputDir:'...'})
-  // 情况2：destination 为 undefined → cmdInit('华山') 只传了1个参数
-  if (destination === undefined || typeof destination === 'object') {
-    const oldDest = startDate || '';
-    const oldOpts = (typeof destination === 'object') ? destination : {};
-    return _cmdInitLegacy(oldDest, oldOpts);
-  }
-  // 情况3：传了2个非object参数，但第一个不像日期 → 旧格式
-  if (activity === undefined && !/^\d{4}-\d{2}-\d{2}$/.test(startDate || '')) {
-    return _cmdInitLegacy(startDate || '', {});
-  }
-
-  const opts = (typeof options === 'object' && options !== null) ? options : {};
-  const outputDir = getOutputDir(opts);
+function cmdInit(destination, options) {
+  const outputDir = getOutputDir(options);
   let state = loadState(outputDir);
 
   // 检查是否已有进行中的行程
@@ -407,103 +356,8 @@ function cmdInit(startDate, destination, activity, options) {
     }
   }
 
-  const trip = createTripPlan(destination, opts);
-  trip.tripId = generateTripId(destination, startDate);
-  trip.dates.start = startDate;
-  trip.dates.end = startDate; // 默认单日，后续通过 cmdSetRequirements 修正
-
-  // 活动描述写入 interests + fitness 推导
-  const activityParts = (activity || '').split(/[+、\/]/).map(s => s.trim()).filter(Boolean);
-  trip.preferences.interests = activityParts;
-  // 从活动关键词推导体力水平
-  if (/高强度|重装|穿越/.test(activity)) trip.preferences.fitness = '高强度';
-  else if (/休闲|轻松|观光|文化/.test(activity)) trip.preferences.fitness = '轻松';
-
-  state.trips[trip.tripId] = trip;
-  state.activeTripId = trip.tripId;
-  saveState(state, outputDir);
-
-  // ── 构建精简的补问清单（只问还缺的） ──
-  const missing = [];
-  const hasAll = !!activity && !!destination && !!startDate;
-
-  if (!activity) {
-    missing.push({ id: 'activity', label: '活动类型（如 徒步+文化探访）', required: true });
-  }
-  if (!destination) {
-    missing.push({ id: 'destination', label: '目的地（如 古蜀道）', required: true });
-  }
-  if (!startDate) {
-    missing.push({ id: 'startDate', label: '出发日期（如 2026-06-01）', required: true });
-  }
-
-  // 即便三个必填项都有，也补问一些可选信息
-  const optionalQuestions = [
-    { id: 'endDate', label: '返回日期（单日可不填）', required: false },
-    { id: 'origin', label: '从哪个城市出发？', required: false },
-    { id: 'returnTo', label: '回到哪个城市？（同出发可不填）', required: false },
-    { id: 'participants', label: '几个人？', required: false, default: '1' },
-    { id: 'transport', label: '交通偏好（火车/飞机/自驾）', required: false },
-    { id: 'accommodation', label: '住宿偏好（酒店类型/预算）', required: false },
-    { id: 'fitness', label: '体力水平（轻松/适中/高强度）', required: false },
-  ];
-
-  if (missing.length > 0) {
-    return {
-      tripId: trip.tripId,
-      status: trip.status,
-      collectPrompt: {
-        message: `好的！开始规划「${destination || '(待定)'}」的行程。以下信息还需补充：`,
-        questions: [...missing, ...optionalQuestions],
-      },
-    };
-  }
-
-  return {
-    tripId: trip.tripId,
-    status: trip.status,
-    summary: {
-      destination: trip.destination,
-      startDate: trip.dates.start,
-      activity: activity,
-      interests: trip.preferences.interests,
-      fitness: trip.preferences.fitness,
-    },
-    collectPrompt: {
-      message: hasAll
-        ? `「${destination} · ${activity}」行程已创建（${startDate}）。如需补充细节：`
-        : `还需以下信息：`,
-      questions: hasAll ? optionalQuestions : [...missing, ...optionalQuestions],
-    },
-    nextSteps: [
-      'search_routes: 搜索徒步路线（两步路+小红书+B站）',
-      'search_transport: 查询大交通（12306/flyai）',
-      'search_hotels: 查询酒店（flyai/web_search）',
-      'search_culture: 收集人文信息（Wikipedia/xiaohongshu）',
-      'generate_plan: 生成完整行程计划',
-      'render_maps: 渲染行程地图',
-    ],
-  };
-}
-
-/**
- * 旧格式兼容：cmdInit(destination, options)
- */
-function _cmdInitLegacy(destination, options) {
-  const outputDir = getOutputDir(options);
-  let state = loadState(outputDir);
-
-  if (state.activeTripId) {
-    const activeTrip = state.trips[state.activeTripId];
-    if (activeTrip && activeTrip.status !== STATUS.COMPLETED) {
-      return {
-        error: `已有进行中的行程「${activeTrip.destination}」（${activeTrip.tripId}），请先完成或取消`,
-        activeTripId: activeTrip.tripId,
-      };
-    }
-  }
-
   const trip = createTripPlan(destination, options);
+  // 先分配一个临时 tripId
   trip.tripId = generateTripId(destination, getToday());
 
   state.trips[trip.tripId] = trip;
@@ -566,11 +420,6 @@ function cmdSetRequirements(requirements) {
     trip.preferences.interests = typeof r.interests === 'string'
       ? r.interests.split(/[,，]/).map(s => s.trim())
       : r.interests;
-  }
-  // 活动类型（hike-init 新参数兼容）
-  if (r.activity) {
-    const activityParts = r.activity.split(/[+、/]/).map(s => s.trim()).filter(Boolean);
-    trip.preferences.interests = [...new Set([...trip.preferences.interests, ...activityParts])];
   }
 
   // 重新生成 tripId（用真实日期）
@@ -643,7 +492,7 @@ function addDays(dateStr, n) {
 // ── 命令：设置徒步路线 ────────────────────────────────
 
 function cmdSetHikingRoutes(routes, tripId) {
-  const { state } = loadStateWithFallback();
+  const state = loadState(getOutputDir());
   const trip = getTrip(state, tripId);
   if (!trip) return { error: '没有活动的行程' };
 
@@ -670,7 +519,7 @@ function cmdSetHikingRoutes(routes, tripId) {
 // ── 命令：设置交通 ────────────────────────────────────
 
 function cmdSetDayNode(dayIndex, node, tripId) {
-  const { state } = loadStateWithFallback();
+  const state = loadState(getOutputDir());
   const trip = getTrip(state, tripId);
   if (!trip) return { error: '没有活动的行程' };
   if (!trip.days[dayIndex]) return { error: `第 ${dayIndex} 天不存在` };
@@ -692,7 +541,7 @@ function cmdSetDayNode(dayIndex, node, tripId) {
 }
 
 function cmdSetDayWeather(dayIndex, weather, tripId) {
-  const { state } = loadStateWithFallback();
+  const state = loadState(getOutputDir());
   const trip = getTrip(state, tripId);
   if (!trip) return { error: '没有活动的行程' };
   if (!trip.days[dayIndex]) return { error: `第 ${dayIndex} 天不存在` };
@@ -707,7 +556,7 @@ function cmdSetDayWeather(dayIndex, weather, tripId) {
 // ── 命令：设置文化信息 ────────────────────────────────
 
 function cmdSetCulture(culture, tripId) {
-  const { state } = loadStateWithFallback();
+  const state = loadState(getOutputDir());
   const trip = getTrip(state, tripId);
   if (!trip) return { error: '没有活动的行程' };
 
@@ -721,7 +570,7 @@ function cmdSetCulture(culture, tripId) {
 // ── 命令：设置装备 + 待办 ──────────────────────────────
 
 function cmdSetEquipment(equipment, tripId) {
-  const { state } = loadStateWithFallback();
+  const state = loadState(getOutputDir());
   const trip = getTrip(state, tripId);
   if (!trip) return { error: '没有活动的行程' };
 
@@ -733,7 +582,7 @@ function cmdSetEquipment(equipment, tripId) {
 }
 
 function cmdSetTodos(todos, tripId) {
-  const { state } = loadStateWithFallback();
+  const state = loadState(getOutputDir());
   const trip = getTrip(state, tripId);
   if (!trip) return { error: '没有活动的行程' };
 
@@ -747,7 +596,7 @@ function cmdSetTodos(todos, tripId) {
 // ── 命令：设置地图链接 ────────────────────────────────
 
 function cmdSetMapUrl(dayIndex, mapUrl, tripId) {
-  const { state } = loadStateWithFallback();
+  const state = loadState(getOutputDir());
   const trip = getTrip(state, tripId);
   if (!trip) return { error: '没有活动的行程' };
   if (!trip.days[dayIndex]) return { error: `第 ${dayIndex} 天不存在` };
@@ -765,7 +614,7 @@ function cmdSetMapUrl(dayIndex, mapUrl, tripId) {
 // ── 命令：确认计划 ────────────────────────────────────
 
 function cmdConfirm(tripId) {
-  const { state } = loadStateWithFallback();
+  const state = loadState(getOutputDir());
   const trip = getTrip(state, tripId);
   if (!trip) return { error: '没有活动的行程' };
 
@@ -779,7 +628,7 @@ function cmdConfirm(tripId) {
 // ── 命令：出发（激活） ────────────────────────────────
 
 function cmdActivate(tripId) {
-  const { state } = loadStateWithFallback();
+  const state = loadState(getOutputDir());
   const trip = getTrip(state, tripId);
   if (!trip) return { error: '没有活动的行程' };
   if (trip.status !== STATUS.CONFIRMED) {
@@ -796,7 +645,7 @@ function cmdActivate(tripId) {
 // ── 命令：hike-status ─────────────────────────────────
 
 function cmdStatus(tripId) {
-  const { state } = loadStateWithFallback();
+  const state = loadState(getOutputDir());
   const trip = getTrip(state, tripId);
   if (!trip) {
     return { status: STATUS.IDLE, message: '没有活动的行程。输入 hike-init <目的地> 开始规划。' };
@@ -875,7 +724,7 @@ function cmdStatus(tripId) {
 // ── 命令：hike-today ──────────────────────────────────
 
 function cmdToday(dateStr) {
-  const { state } = loadStateWithFallback();
+  const state = loadState(getOutputDir());
   const trip = getTrip(state);
   if (!trip) return { error: '没有活动的行程' };
 
@@ -1298,7 +1147,7 @@ function parseTimeToMinutes(timeStr) {
  * @param {object} actual - 可选的实际数据
  */
 function cmdSetNodeStatus(tripId, dayIndex, nodeIndex, status, actual) {
-  const { state } = loadStateWithFallback();
+  const state = loadState(getOutputDir());
   const trip = getTrip(state, tripId);
   if (!trip) return { error: '没有活动的行程' };
 
@@ -1345,27 +1194,8 @@ function cmdSetNodeStatus(tripId, dayIndex, nodeIndex, status, actual) {
 
 // ── 命令：hike-log ────────────────────────────────────
 
-/**
- * hike-log — 记录行程最新信息。
- *
- * 用途：
- * - 🚄 订好车票：粘贴 12306 订单短信自动解析（车次/站点/时间/座位）
- * - ✈️ 订好机票：粘贴航司订单短信自动解析（航班/城市/日期/舱位）
- * - 🏨 订了酒店：粘贴酒店订单短信自动解析（店名/入住/退房/房型）
- * - 💰 支出花销：记录实际花费，自动与预算对比
- * - ⏰ 时间变更：记录实际出发/到达时间，自动计算偏差
- * - 📝 备注信息：任意文本记录
- *
- * 自动能力：
- * - 订单短信智能解析（12306 / 航司 / 酒店 / OTA）
- * - 计划 vs 实际时间/费用偏差对比
- * - 节点状态自动标记（完成/变更/跳过/待定）
- *
- * @param {string} text - 日志文本或订单短信
- * @param {string} [dateStr] - 日期，默认今天
- */
 function cmdLog(text, dateStr) {
-  const { state } = loadStateWithFallback();
+  const state = loadState(getOutputDir());
   const trip = getTrip(state);
   if (!trip) return { error: '没有活动的行程' };
 
@@ -1565,7 +1395,8 @@ const INCOMPLETE_STATUSES = [STATUS.PLANNING, STATUS.CONFIRMED, STATUS.ACTIVE];
  * @param {string} [tripId] - 可选，归档指定行程
  */
 function cmdList(tripId) {
-  const { state } = loadStateWithFallback();
+  const outputDir = getOutputDir();
+  const state = loadState(outputDir);
 
   // ── 指定 tripId：完整汇总 + 归档（原 hike-summary 逻辑） ──
   if (tripId) {
@@ -1701,37 +1532,32 @@ function cmdListArchive(state, tripId) {
   return summary;
 }
 
-// ── 命令：hike-select（取代 hike-set） ────────────────
+// ── 命令：hike-set ───────────────────────────────────
 
 /**
- * hike-select — 选择/切换默认输出目录或激活行程。
- *
- * 用法 1：hike-select output <path>
- *   设置/切换默认输出目录，持久化到 ~/.hike-planner/config.json
- *
- * 用法 2：hike-select <planname>
- *   激活/选择某个行程进行管理。<planname> 可以是 tripId 或目的地关键词，支持模糊匹配。
- *   选择后，hike-status / hike-today / hike-log 等命令都作用于被选中的行程。
- *
- * @param {string} arg1 - 'output' 或 planname
- * @param {string} [arg2] - output 路径（仅 arg1='output' 时有效）
+ * 设置全局配置项。目前支持：
+ *   hike-set outputDir <路径> — 设置默认输出目录，持久化到 ~/.hike-planner/config.json
+ * @param {string} key - 配置项名称
+ * @param {string} value - 配置值
  */
-function cmdSelect(arg1, arg2) {
-  if (!arg1) {
-    return { error: '用法：hike-select output <路径> 或 hike-select <行程名>' };
+function cmdSet(key, value) {
+  const supportedKeys = ['outputDir'];
+  if (!key || !supportedKeys.includes(key)) {
+    return { error: `不支持的配置项「${key}」，支持：${supportedKeys.join(', ')}` };
+  }
+  if (!value) {
+    return { error: `请提供 ${key} 的值，例如：hike-set outputDir /path/to/dir` };
   }
 
-  // ── 用法 1：hike-select output <path> ──
-  if (arg1 === 'output') {
-    if (!arg2) {
-      return { error: '请提供输出目录路径，例如：hike-select output /path/to/planner' };
-    }
-    const resolved = path.resolve(arg2);
+  const config = loadConfig();
+
+  if (key === 'outputDir') {
+    // 校验路径合法（存在或可创建）
+    const resolved = path.resolve(value);
     const parent = path.dirname(resolved);
     if (!fs.existsSync(parent)) {
       return { error: `父目录不存在：${parent}` };
     }
-    const config = loadConfig();
     config.outputDir = resolved;
     saveConfig(config);
     return {
@@ -1742,110 +1568,7 @@ function cmdSelect(arg1, arg2) {
     };
   }
 
-  // ── 用法 2：hike-select <planname> ──
-  const query = arg1.toLowerCase();
-  const configuredDir = getOutputDir();
-  let state = loadState(configuredDir);
-
-  // 如果在已配置的目录中没有行程，也检查默认目录并合并
-  let effectiveDir = configuredDir;
-  if (configuredDir !== DEFAULT_OUTPUT_DIR) {
-    const defaultState = loadState(DEFAULT_OUTPUT_DIR);
-    const defaultTrips = Object.entries(defaultState.trips);
-    if (defaultTrips.length > 0) {
-      // 合并两个目录的行程
-      for (const [id, trip] of Object.entries(state.trips)) {
-        if (!defaultState.trips[id]) defaultState.trips[id] = trip;
-      }
-      defaultState.activeTripId = defaultState.activeTripId || state.activeTripId;
-      state = defaultState;
-      effectiveDir = DEFAULT_OUTPUT_DIR;
-    }
-  }
-
-  const allTrips = Object.entries(state.trips);
-  if (allTrips.length === 0) {
-    return { error: '没有任何行程。请先 hike-init 创建行程。' };
-  }
-
-  // 模糊匹配：精确 tripId > 部分 tripId > 目的地关键词
-  let matches = [];
-
-  // 1. 精确 tripId 匹配
-  const exact = allTrips.find(([id]) => id.toLowerCase() === query);
-  if (exact) {
-    matches = [exact];
-  }
-
-  // 2. tripId 包含查询
-  if (matches.length === 0) {
-    matches = allTrips.filter(([id]) => id.toLowerCase().includes(query));
-  }
-
-  // 3. 目的地关键词匹配
-  if (matches.length === 0) {
-    matches = allTrips.filter(([, trip]) =>
-      trip.destination && trip.destination.toLowerCase().includes(query)
-    );
-  }
-
-  if (matches.length === 0) {
-    return {
-      error: `未找到匹配「${arg1}」的行程`,
-      availableTrips: allTrips.map(([id, t]) => ({
-        tripId: id,
-        destination: t.destination,
-        status: t.status,
-        dates: t.dates,
-        isActive: t.tripId === state.activeTripId,
-      })),
-    };
-  }
-
-  if (matches.length > 1) {
-    return {
-      error: `找到 ${matches.length} 个匹配的行程，请更精确地指定：`,
-      candidates: matches.map(([id, t]) => ({
-        tripId: id,
-        destination: t.destination,
-        status: t.status,
-        dates: t.dates,
-        isActive: t.tripId === state.activeTripId,
-      })),
-    };
-  }
-
-  // 唯一匹配 → 激活该行程
-  const [matchedId, matchedTrip] = matches[0];
-  const wasActive = state.activeTripId === matchedId;
-  state.activeTripId = matchedId;
-  saveState(state, effectiveDir);
-
-  const statusLabel = { IDLE: '空闲', COLLECTING: '收集中', PLANNING: '规划中', CONFIRMED: '已确认', ACTIVE: '进行中', COMPLETED: '已完成' };
-
-  return {
-    tripId: matchedId,
-    destination: matchedTrip.destination,
-    status: matchedTrip.status,
-    statusLabel: statusLabel[matchedTrip.status] || matchedTrip.status,
-    dates: matchedTrip.dates,
-    message: wasActive
-      ? `已在管理「${matchedTrip.destination}」（${matchedId}）`
-      : `✅ 已切换到「${matchedTrip.destination}」（${matchedId}），后续 hike-status/today/log 将作用于该行程。`,
-  };
-}
-
-// ── 命令：hike-set（已废弃，委托给 hike-select） ──────
-
-/**
- * @deprecated 请使用 hike-select output <path> 代替。
- * 保留向后兼容。
- */
-function cmdSet(key, value) {
-  if (key === 'outputDir') {
-    return cmdSelect('output', value);
-  }
-  return { error: `hike-set 已废弃，请使用 hike-select。<br/>设置输出目录：hike-select output <路径><br/>选择行程：hike-select <行程名>` };
+  return { error: `未知错误` };
 }
 
 // ── 命令：生成 README.md ───────────────────────────────
@@ -1856,7 +1579,7 @@ function cmdSet(key, value) {
  * @returns {object} { content, filePath }
  */
 function cmdGeneratePlan(tripId) {
-  const { state } = loadStateWithFallback();
+  const state = loadState(getOutputDir());
   const trip = getTrip(state, tripId);
   if (!trip) return { error: '没有活动的行程' };
 
@@ -2042,14 +1765,13 @@ module.exports = {
   DEFAULT_OUTPUT_DIR,
   CONFIG_FILE,
 
-  // 7 条主命令
+  // 6 条主命令
   cmdInit,
   cmdStatus,
   cmdToday,
   cmdLog,
   cmdList,
-  cmdSelect,
-  cmdSet,  // deprecated, kept for backward compat
+  cmdSet,
 
   // 汇总归档（hike-list <tripId>）
   cmdListArchive,
