@@ -2,7 +2,7 @@
   "name": "hike-planner",
   "ownerId": "kn73h0b3vxspe7143ad7dk07xn822pwv",
   "slug": "hike-planner",
-  "version": "1.0.1",
+  "version": "0.3.1",
   "description": "一站式徒步出行规划。输入目的地和日期，10分钟内生成含大交通、酒店、路线、人文的完整计划。多源交叉验证（12306/两步路/高德/小红书/GPX文件）。出发前根据酒店机票火车票短信自动修定行程，出发后根据实际情况记录修改行程。只查不买。",
   "keywords": ["hiking", "trip", "travel", "planner", "route", "transportation", "map"]
 }
