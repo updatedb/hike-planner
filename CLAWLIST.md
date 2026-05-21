@@ -11,3 +11,14 @@
 - [x] ClawHub 发布 → v0.2.0 ✅
 - [x] Backlog 修复 → delayMinutes/costOverrun/新模式 ✅
 - [x] ClawHub 发布 → v0.2.1 ✅
+- [x] 需求更新 2026-05-21 ✅
+  - [x] 命令重新定义（Day 级）：hike-add/hike-del/hike-reorder
+  - [x] 文化分类统一 3-5 个
+  - [x] 完整版本历史
+  - [x] PLAN_TEMPLATE.md 同步
+- [x] Dev → v0.4.0 ✅
+  - [x] hike-planner.js：命令实现重写（node 级 → Day 级）✅
+  - [x] hike-planner.js：文化分类 "最少4个" → "3-5 个" ✅
+  - [x] fix: cmdReorderDay no-op 返回补充 ok:true ✅
+- [x] Tester → 回归验证 ✅ (28/28 PASS)
+- [x] ClawHub 发布 → v1.1.0 ✅

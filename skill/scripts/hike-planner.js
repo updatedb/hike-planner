@@ -1881,50 +1881,52 @@ function cmdGeneratePlan(tripId) {
   };
 }
 
-// ── 命令：hike-add（添加节点） ────────────────────────────
+// ── Day 编号解析工具 ────────────────────────────────
 
 /**
- * 在指定日期添加节点
- * 用法：hike-add <DAY> <节点名称> [--before|--after <目标节点>]
+ * 解析 Day 编号字符串（day1-dayN）为 0-indexed 数组索引
+ * 也兼容纯数字格式（1-N）
  */
-function cmdAddNode(dayStr, nodeName, options, tripId) {
+function parseDayIndex(dayStr) {
+  if (!dayStr) return -1;
+  const match = dayStr.toLowerCase().match(/^day(\d+)$/);
+  if (match) return parseInt(match[1], 10) - 1;
+  // 兼容纯数字
+  const num = parseInt(dayStr, 10);
+  if (!isNaN(num) && num >= 1) return num - 1;
+  return -1;
+}
+
+// ── 命令：hike-add（Day 级新增行程段） ─────────────────────
+
+/**
+ * 在指定 Day 末尾新增行程段节点
+ * 用法：hike-add day3 A-B
+ */
+function cmdAddDay(dayStr, routeStr, tripId) {
   const { state } = loadStateWithFallback();
   const trip = getTrip(state, tripId);
   if (!trip) return { error: '没有活动的行程' };
 
-  const dayIndex = parseInt(dayStr) - 1;
-  if (isNaN(dayIndex) || dayIndex < 0 || dayIndex >= trip.days.length) {
-    return { error: `DAY 参数无效。有效范围：1-${trip.days.length}` };
+  const dayIndex = parseDayIndex(dayStr);
+  if (dayIndex < 0 || dayIndex >= trip.days.length) {
+    return { error: `DAY 参数无效。有效范围：day1-day${trip.days.length}` };
   }
-  if (!nodeName || !nodeName.trim()) {
-    return { error: '缺少节点名称。用法：hike-add <DAY> <节点名称>' };
+  if (!routeStr || !routeStr.trim()) {
+    return { error: '缺少行程段描述。用法：hike-add <DAY> <行程段>' };
   }
 
   const day = trip.days[dayIndex];
   const newNode = {
-    time: '\u2014',
-    name: nodeName.trim(),
+    time: '—',
+    name: routeStr.trim(),
     type: 'activity',
     cost: null,
     remark: '',
     detail: '',
   };
 
-  let insertAt = day.nodes.length;
-  const target = options?.before || options?.after;
-  if (target) {
-    const targetIdx = day.nodes.findIndex(n => n.name && n.name.includes(target));
-    if (targetIdx >= 0) {
-      insertAt = options.before ? targetIdx : targetIdx + 1;
-    }
-  } else if (day.nodes.length > 0) {
-    const lastHikingIdx = day.nodes.map((n, i) => ({ n, i })).reverse().find(x => x.n.type === 'hiking');
-    if (lastHikingIdx) {
-      insertAt = lastHikingIdx.i + 1;
-    }
-  }
-
-  day.nodes.splice(insertAt, 0, newNode);
+  day.nodes.push(newNode);
   trip.updatedAt = new Date().toISOString();
   saveState(state, trip.outputDir);
 
@@ -1936,39 +1938,27 @@ function cmdAddNode(dayStr, nodeName, options, tripId) {
   return {
     ok: true,
     tripId: trip.tripId,
-    message: `已添加节点「${newNode.name}」到 DAY ${dayIndex + 1}`,
+    message: `已添加行程段「${newNode.name}」到 DAY ${dayIndex + 1}`,
   };
 }
 
-// ── 命令：hike-remove（删除节点） ────────────────────────
+// ── 命令：hike-del（Day 级删除日程） ────────────────────────
 
 /**
- * 删除指定日期的某个节点
- * 用法：hike-remove <DAY> <节点名称>
+ * 删除指定 Day
+ * 用法：hike-del day3
  */
-function cmdRemoveNode(dayStr, nodeName, tripId) {
+function cmdDelDay(dayStr, tripId) {
   const { state } = loadStateWithFallback();
   const trip = getTrip(state, tripId);
   if (!trip) return { error: '没有活动的行程' };
 
-  const dayIndex = parseInt(dayStr) - 1;
-  if (isNaN(dayIndex) || dayIndex < 0 || dayIndex >= trip.days.length) {
-    return { error: `DAY 参数无效。有效范围：1-${trip.days.length}` };
-  }
-  if (!nodeName || !nodeName.trim()) {
-    return { error: '缺少节点名称。用法：hike-remove <DAY> <节点名称>' };
+  const dayIndex = parseDayIndex(dayStr);
+  if (dayIndex < 0 || dayIndex >= trip.days.length) {
+    return { error: `DAY 参数无效。有效范围：day1-day${trip.days.length}` };
   }
 
-  const day = trip.days[dayIndex];
-  const targetIdx = day.nodes.findIndex(n =>
-    n.name && n.name.includes(nodeName.trim())
-  );
-  if (targetIdx < 0) {
-    const names = day.nodes.map(n => n.name).join(', ');
-    return { error: `未找到匹配节点。可用节点：${names}` };
-  }
-
-  const removed = day.nodes.splice(targetIdx, 1)[0];
+  const removed = trip.days.splice(dayIndex, 1)[0];
   trip.updatedAt = new Date().toISOString();
   saveState(state, trip.outputDir);
 
@@ -1980,61 +1970,70 @@ function cmdRemoveNode(dayStr, nodeName, tripId) {
   return {
     ok: true,
     tripId: trip.tripId,
-    message: `已删除节点「${removed.name}」`,
+    message: `已删除 Day ${dayIndex + 1}`,
   };
 }
 
-// ── 命令：hike-reorder（调整节点顺序） ──────────────────
+// ── 命令：hike-reorder（Day 级重排） ──────────────────
 
 /**
- * 调整节点顺序
- * 用法：hike-reorder <DAY> <节点名称> <up|down> [步数]
- *       hike-reorder <DAY> <节点名称> before|after <目标节点>
+ * 调整 Day 顺序
+ * 用法：hike-reorder day5 after day2
+ *       hike-reorder day5 before day2
+ *       hike-reorder day5 to day2
  */
-function cmdReorderNode(dayStr, nodeName, action, target, tripId) {
+function cmdReorderDay(dayStr, action, targetDay, tripId) {
   const { state } = loadStateWithFallback();
   const trip = getTrip(state, tripId);
   if (!trip) return { error: '没有活动的行程' };
 
-  const dayIndex = parseInt(dayStr) - 1;
-  if (isNaN(dayIndex) || dayIndex < 0 || dayIndex >= trip.days.length) {
-    return { error: `DAY 参数无效。有效范围：1-${trip.days.length}` };
-  }
-  if (!nodeName || !nodeName.trim()) {
-    return { error: '缺少节点名称。用法：hike-reorder <DAY> <节点名称> <up|down|before|after> [步数|目标节点]' };
+  const srcIdx = parseDayIndex(dayStr);
+  if (srcIdx < 0 || srcIdx >= trip.days.length) {
+    return { error: `DAY 参数无效。有效范围：day1-day${trip.days.length}` };
   }
 
-  const day = trip.days[dayIndex];
-  const srcIdx = day.nodes.findIndex(n =>
-    n.name && n.name.includes(nodeName.trim())
-  );
-  if (srcIdx < 0) {
-    return { error: `未找到匹配节点。` };
+  if (!action || !['after', 'before', 'to'].includes(action)) {
+    return { error: `无效操作：${action}。支持 after/before/to` };
+  }
+
+  if (!targetDay || !targetDay.trim()) {
+    return { error: '缺少目标 Day。用法：hike-reorder <DAY> after|before|to <目标DAY>' };
+  }
+
+  let tgtIdx = parseDayIndex(targetDay);
+  if (tgtIdx < 0 || tgtIdx >= trip.days.length) {
+    return { error: `目标 DAY 参数无效。有效范围：day1-day${trip.days.length}` };
   }
 
   let destIdx;
-  if (action === 'up') {
-    const steps = Math.abs(parseInt(target) || 1);
-    destIdx = Math.max(0, srcIdx - steps);
-  } else if (action === 'down') {
-    const steps = Math.abs(parseInt(target) || 1);
-    destIdx = Math.min(day.nodes.length - 1, srcIdx + steps);
-  } else if (action === 'before' || action === 'after') {
-    if (!target) return { error: '缺少目标节点名称。用法：hike-reorder <DAY> <节点> before|after <目标节点>' };
-    const tgtIdx = day.nodes.findIndex(n => n.name && n.name.includes(target));
-    if (tgtIdx < 0) return { error: `未找到目标节点` };
-    destIdx = action === 'before' ? tgtIdx : tgtIdx + 1;
-    if (srcIdx < destIdx) destIdx--;
-  } else {
-    return { error: `无效操作：${action}。支持 up/down/before/after` };
+  if (action === 'after') {
+    destIdx = tgtIdx + 1;
+  } else if (action === 'before') {
+    destIdx = tgtIdx;
+  } else { // to
+    // swap src and tgt elements
+    const src = trip.days[srcIdx];
+    trip.days[srcIdx] = trip.days[tgtIdx];
+    trip.days[tgtIdx] = src;
+    trip.updatedAt = new Date().toISOString();
+    saveState(state, trip.outputDir);
+
+    let md = renderPlanReadme(trip);
+    const dir = path.join(trip.outputDir, 'upcoming', trip.tripId);
+    const filePath = path.join(dir, 'README.md');
+    fs.writeFileSync(filePath, md, 'utf8');
+
+    return { ok: true, tripId: trip.tripId, message: `已交换 Day${srcIdx + 1} 和 Day${tgtIdx + 1}` };
   }
 
   if (destIdx === srcIdx) {
-    return { message: `已在目标位置，无需移动。` };
+    return { ok: true, tripId: trip.tripId, message: '已在目标位置，无需移动。' };
   }
 
-  const [moved] = day.nodes.splice(srcIdx, 1);
-  day.nodes.splice(destIdx, 0, moved);
+  const [moved] = trip.days.splice(srcIdx, 1);
+  // splice 之后如果 srcIdx < destIdx，destIdx 需要 -1
+  if (srcIdx < destIdx) destIdx--;
+  trip.days.splice(destIdx, 0, moved);
   trip.updatedAt = new Date().toISOString();
   saveState(state, trip.outputDir);
 
@@ -2046,7 +2045,7 @@ function cmdReorderNode(dayStr, nodeName, action, target, tripId) {
   return {
     ok: true,
     tripId: trip.tripId,
-    message: `已移动节点到第 ${destIdx + 1} 位`,
+    message: `已将 Day${srcIdx + 1} 移动到位置 ${destIdx + 1}`,
   };
 }
 
@@ -2309,7 +2308,7 @@ function renderPlanReadme(trip) {
   lines.push(`### ${trip.destination}`);
   lines.push('');
 
-  // 文化信息 — 强制最少4个分类
+  // 文化信息 — 3-5 个最相关分类
   const cultureOrder = ['geography', 'history', 'poetry', 'relics', 'worldHeritage', 'food', 'religion', 'festivals'];
   const cultureTitles = {
     geography: '地理风貌',
@@ -2344,10 +2343,10 @@ function renderPlanReadme(trip) {
         lines.push('');
       }
     }
-    // 强制补齐：如果少于4个已有分类，生成占位节
-    if (renderedKeys.size < 4) {
+    // 强制补齐：如果少于3个已有分类，生成占位节
+    if (renderedKeys.size < 3) {
       const remaining = cultureOrder.filter(k => !renderedKeys.has(k));
-      const toAdd = remaining.slice(0, 4 - renderedKeys.size);
+      const toAdd = remaining.slice(0, 3 - renderedKeys.size);
       for (const key of toAdd) {
         lines.push(`### ${cultureTitles[key] || key}`);
         lines.push('');
@@ -2356,8 +2355,8 @@ function renderPlanReadme(trip) {
       }
     }
   } else {
-    // 完全没有文化信息：输出最少4个占位节
-    const defaultCategories = cultureOrder.slice(0, 4);
+    // 完全没有文化信息：输出最少3个占位节
+    const defaultCategories = cultureOrder.slice(0, 3);
     for (const key of defaultCategories) {
       lines.push(`### ${cultureTitles[key] || key}`);
       lines.push('');
@@ -2458,9 +2457,13 @@ module.exports = {
   cmdConfirm,
   cmdActivate,
   cmdGeneratePlan,
-  cmdAddNode,
-  cmdRemoveNode,
-  cmdReorderNode,
+  cmdAddDay,
+  cmdDelDay,
+  cmdReorderDay,
+  // 旧别名（向后兼容）
+  cmdAddNode: cmdAddDay,
+  cmdRemoveNode: cmdDelDay,
+  cmdReorderNode: cmdReorderDay,
 
   // 新增：订单短信解析 + 实时行程修订
   cmdSetNodeStatus,
