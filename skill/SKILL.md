@@ -129,6 +129,6 @@ Agent 交互收集需求后，自动执行搜索与生成。以「古蜀道 5/13
 | v0.2.0 | 2026-05-20 | 短信解析 + 实时修订 + 汽车/徒步区分 |
 | v0.2.1 | 2026-05-20 | Backlog 修复：delayMinutes/costOverrun 链路修复 + 新模式处理 |
 | v0.3.0 | 2026-05-20 | 行程详情强制完善 + 出行建议/网红推荐 + 装备/待办预填充 + 每日安排补充路线详情 + hike-add/remove/reorder 路线调整命令 |
-- v0.4.0：命令重新定义为 Day 级操作（hike-add/hike-del/hike-reorder）+ 文化分类统一 3-5 个 + 完整版本历史
-| v1.1.0 | 2026-05-21 | 命令 Day 级重写（hike-add/hike-del/hike-reorder）+ 文化分类统一 3-5 个 + 完整版本历史 + PLAN_TEMPLATE 同步 |
 | v0.3.1 | 2026-05-21 | 小版本发布 |
+| v0.4.0 | 2026-05-21 | 命令重新定义为 Day 级操作（hike-add/hike-del/hike-reorder）+ 文化分类统一 3-5 个 + 完整版本历史 |
+| v1.1.0 | 2026-05-21 | 命令 Day 级重写（hike-add/hike-del/hike-reorder）+ 文化分类统一 3-5 个 + 完整版本历史 + PLAN_TEMPLATE 同步 + ClawHub 发布 |
