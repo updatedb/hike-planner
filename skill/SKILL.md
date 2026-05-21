@@ -132,3 +132,4 @@ Agent 交互收集需求后，自动执行搜索与生成。以「古蜀道 5/13
 | v0.3.1 | 2026-05-21 | 小版本发布 |
 | v0.4.0 | 2026-05-21 | 命令重新定义为 Day 级操作（hike-add/hike-del/hike-reorder）+ 文化分类统一 3-5 个 + 完整版本历史 |
 | v1.1.0 | 2026-05-21 | 命令 Day 级重写（hike-add/hike-del/hike-reorder）+ 文化分类统一 3-5 个 + 完整版本历史 + PLAN_TEMPLATE 同步 + ClawHub 发布 |
+| v1.1.1 | 2026-05-21 | SKILL.md 版本表格式修复 |
