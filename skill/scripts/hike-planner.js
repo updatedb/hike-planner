@@ -1881,6 +1881,366 @@ function cmdGeneratePlan(tripId) {
   };
 }
 
+// ── 命令：hike-add（添加节点） ────────────────────────────
+
+/**
+ * 在指定日期添加节点
+ * 用法：hike-add <DAY> <节点名称> [--before|--after <目标节点>]
+ */
+function cmdAddNode(dayStr, nodeName, options, tripId) {
+  const { state } = loadStateWithFallback();
+  const trip = getTrip(state, tripId);
+  if (!trip) return { error: '没有活动的行程' };
+
+  const dayIndex = parseInt(dayStr) - 1;
+  if (isNaN(dayIndex) || dayIndex < 0 || dayIndex >= trip.days.length) {
+    return { error: `DAY 参数无效。有效范围：1-${trip.days.length}` };
+  }
+  if (!nodeName || !nodeName.trim()) {
+    return { error: '缺少节点名称。用法：hike-add <DAY> <节点名称>' };
+  }
+
+  const day = trip.days[dayIndex];
+  const newNode = {
+    time: '\u2014',
+    name: nodeName.trim(),
+    type: 'activity',
+    cost: null,
+    remark: '',
+    detail: '',
+  };
+
+  let insertAt = day.nodes.length;
+  const target = options?.before || options?.after;
+  if (target) {
+    const targetIdx = day.nodes.findIndex(n => n.name && n.name.includes(target));
+    if (targetIdx >= 0) {
+      insertAt = options.before ? targetIdx : targetIdx + 1;
+    }
+  } else if (day.nodes.length > 0) {
+    const lastHikingIdx = day.nodes.map((n, i) => ({ n, i })).reverse().find(x => x.n.type === 'hiking');
+    if (lastHikingIdx) {
+      insertAt = lastHikingIdx.i + 1;
+    }
+  }
+
+  day.nodes.splice(insertAt, 0, newNode);
+  trip.updatedAt = new Date().toISOString();
+  saveState(state, trip.outputDir);
+
+  let md = renderPlanReadme(trip);
+  const dir = path.join(trip.outputDir, 'upcoming', trip.tripId);
+  const filePath = path.join(dir, 'README.md');
+  fs.writeFileSync(filePath, md, 'utf8');
+
+  return {
+    ok: true,
+    tripId: trip.tripId,
+    message: `已添加节点「${newNode.name}」到 DAY ${dayIndex + 1}`,
+  };
+}
+
+// ── 命令：hike-remove（删除节点） ────────────────────────
+
+/**
+ * 删除指定日期的某个节点
+ * 用法：hike-remove <DAY> <节点名称>
+ */
+function cmdRemoveNode(dayStr, nodeName, tripId) {
+  const { state } = loadStateWithFallback();
+  const trip = getTrip(state, tripId);
+  if (!trip) return { error: '没有活动的行程' };
+
+  const dayIndex = parseInt(dayStr) - 1;
+  if (isNaN(dayIndex) || dayIndex < 0 || dayIndex >= trip.days.length) {
+    return { error: `DAY 参数无效。有效范围：1-${trip.days.length}` };
+  }
+  if (!nodeName || !nodeName.trim()) {
+    return { error: '缺少节点名称。用法：hike-remove <DAY> <节点名称>' };
+  }
+
+  const day = trip.days[dayIndex];
+  const targetIdx = day.nodes.findIndex(n =>
+    n.name && n.name.includes(nodeName.trim())
+  );
+  if (targetIdx < 0) {
+    const names = day.nodes.map(n => n.name).join(', ');
+    return { error: `未找到匹配节点。可用节点：${names}` };
+  }
+
+  const removed = day.nodes.splice(targetIdx, 1)[0];
+  trip.updatedAt = new Date().toISOString();
+  saveState(state, trip.outputDir);
+
+  let md = renderPlanReadme(trip);
+  const dir = path.join(trip.outputDir, 'upcoming', trip.tripId);
+  const filePath = path.join(dir, 'README.md');
+  fs.writeFileSync(filePath, md, 'utf8');
+
+  return {
+    ok: true,
+    tripId: trip.tripId,
+    message: `已删除节点「${removed.name}」`,
+  };
+}
+
+// ── 命令：hike-reorder（调整节点顺序） ──────────────────
+
+/**
+ * 调整节点顺序
+ * 用法：hike-reorder <DAY> <节点名称> <up|down> [步数]
+ *       hike-reorder <DAY> <节点名称> before|after <目标节点>
+ */
+function cmdReorderNode(dayStr, nodeName, action, target, tripId) {
+  const { state } = loadStateWithFallback();
+  const trip = getTrip(state, tripId);
+  if (!trip) return { error: '没有活动的行程' };
+
+  const dayIndex = parseInt(dayStr) - 1;
+  if (isNaN(dayIndex) || dayIndex < 0 || dayIndex >= trip.days.length) {
+    return { error: `DAY 参数无效。有效范围：1-${trip.days.length}` };
+  }
+  if (!nodeName || !nodeName.trim()) {
+    return { error: '缺少节点名称。用法：hike-reorder <DAY> <节点名称> <up|down|before|after> [步数|目标节点]' };
+  }
+
+  const day = trip.days[dayIndex];
+  const srcIdx = day.nodes.findIndex(n =>
+    n.name && n.name.includes(nodeName.trim())
+  );
+  if (srcIdx < 0) {
+    return { error: `未找到匹配节点。` };
+  }
+
+  let destIdx;
+  if (action === 'up') {
+    const steps = Math.abs(parseInt(target) || 1);
+    destIdx = Math.max(0, srcIdx - steps);
+  } else if (action === 'down') {
+    const steps = Math.abs(parseInt(target) || 1);
+    destIdx = Math.min(day.nodes.length - 1, srcIdx + steps);
+  } else if (action === 'before' || action === 'after') {
+    if (!target) return { error: '缺少目标节点名称。用法：hike-reorder <DAY> <节点> before|after <目标节点>' };
+    const tgtIdx = day.nodes.findIndex(n => n.name && n.name.includes(target));
+    if (tgtIdx < 0) return { error: `未找到目标节点` };
+    destIdx = action === 'before' ? tgtIdx : tgtIdx + 1;
+    if (srcIdx < destIdx) destIdx--;
+  } else {
+    return { error: `无效操作：${action}。支持 up/down/before/after` };
+  }
+
+  if (destIdx === srcIdx) {
+    return { message: `已在目标位置，无需移动。` };
+  }
+
+  const [moved] = day.nodes.splice(srcIdx, 1);
+  day.nodes.splice(destIdx, 0, moved);
+  trip.updatedAt = new Date().toISOString();
+  saveState(state, trip.outputDir);
+
+  let md = renderPlanReadme(trip);
+  const dir = path.join(trip.outputDir, 'upcoming', trip.tripId);
+  const filePath = path.join(dir, 'README.md');
+  fs.writeFileSync(filePath, md, 'utf8');
+
+  return {
+    ok: true,
+    tripId: trip.tripId,
+    message: `已移动节点到第 ${destIdx + 1} 位`,
+  };
+}
+
+// ── 默认装备生成 ────────────────────────────────
+
+/**
+ * 根据目的地类型和活动生成默认装备清单
+ */
+function getDefaultEquipment(trip) {
+  const fitness = (trip.preferences.fitness || '').toLowerCase();
+  const interests = (trip.preferences.interests || []).map(s => s.toLowerCase());
+  const isWinter = isWinterTrip(trip);
+  const isHighAlpine = /高山|雪山|高原|海拔/.test(fitness) || /高山|雪山/.test(interests.join(' '));
+  const isHeavy = /高强度|重装|穿越/.test(fitness);
+
+  const eq = {
+    '鞋': '徒步鞋/越野跑鞋（建议中帮，防水）',
+    '衣': '速干衣裤、冲锋衣/雨衣' + (isWinter ? '、保暖内衣、羽绒服' : '') + '、换洗衣物',
+    '包': (isHeavy ? '重装背包50-70L' : '徒步背包20-35L') + '、防水罩',
+    '导航': '手机+两步路/六只脚离线地图、充电宝',
+    '水': '水袋/保温杯 1-2L，沿途补给点补水',
+    '食物': '路餐（能量棒/坚果/面包）、电解质冲剂',
+    '防晒': '防晒霜SPF50+、遮阳帽、太阳镜、头巾',
+    '药品': '创可贴、云南白药、肠胃药、感冒药' + (isHighAlpine ? '、高原安/红景天' : ''),
+    '证件': '身份证、学生证/老年证（如有优惠）',
+    '电子': '充电宝、数据线、相机（如需）',
+    '其他': '登山杖×2、头灯/手电、急救毯、现金若干',
+  };
+
+  return eq;
+}
+
+// ── 默认待办事项生成 ────────────────────────────
+
+/**
+ * 根据行程上下文生成默认待办清单
+ */
+function getDefaultTodos(trip) {
+  const todos = [
+    '订火车票/机票（确认出发日期和班次）',
+    '订酒店（确认入住日期和房型）',
+    '检查装备清单并补齐缺失物品',
+    '购买户外保险（推荐：慧择/平安户外险）',
+    '下载离线地图和GPX轨迹（两步路/六只脚）',
+  ];
+
+  // 如果有徒步路线，加上轨迹相关
+  if (trip.hikingRoutes && trip.hikingRoutes.length > 0) {
+    todos.push('熟悉徒步路线的关键节点和补给点');
+  }
+
+  return todos;
+}
+
+// ── 路线详情提取 ────────────────────────────────
+
+/**
+ * 从 hikingRoutes 中匹配路线并返回格式化摘要
+ * @returns {string} 如 "距离10km 爬升286m 预计3.5h 难度★★★/★★★★★"
+ */
+function getHikeRouteSummary(nodeName, hikingRoutes) {
+  if (!hikingRoutes || hikingRoutes.length === 0) return '';
+
+  // 尝试精确匹配路线名
+  let route = hikingRoutes.find(r => r.name === nodeName);
+  // 模糊匹配：节点名包含路线名或路线名包含节点名
+  if (!route) {
+    route = hikingRoutes.find(r =>
+      (nodeName && nodeName.includes(r.name)) || (r.name && r.name.includes(nodeName))
+    );
+  }
+  if (!route) return '';
+
+  const parts = [];
+  if (route.distance) parts.push(`距离${route.distance}${route.distanceUnit || 'km'}`);
+  if (route.ascent) parts.push(`爬升${route.ascent}m`);
+  if (route.estimatedTime) parts.push(`预计${route.estimatedTime}`);
+  if (route.difficulty) {
+    parts.push(`难度${route.difficulty}`);
+  } else if (route.distance) {
+    // 根据距离估算难度
+    const dist = parseFloat(route.distance);
+    if (dist <= 5) parts.push('难度★★/★★★★★');
+    else if (dist <= 10) parts.push('难度★★★/★★★★★');
+    else if (dist <= 20) parts.push('难度★★★★/★★★★★');
+    else parts.push('难度★★★★★/★★★★★');
+  }
+
+  return parts.join(' ');
+}
+
+/**
+ * 判断行程是否在冬季（11月-3月）
+ */
+function isWinterTrip(trip) {
+  if (!trip.dates || !trip.dates.start) return false;
+  const m = parseInt((trip.dates.start || '').substring(5, 7));
+  return m >= 11 || m <= 3;
+}
+
+// ── 出行建议渲染 ────────────────────────────────
+
+/**
+ * 渲染出行建议节
+ */
+function renderTravelAdvice(trip, lines) {
+  lines.push('### 出行建议');
+  lines.push('');
+
+  // 交通建议
+  lines.push('#### 交通建议');
+  lines.push('');
+  lines.push('| 交通方式 | 建议 |');
+  lines.push('|---------|------|');
+  // 到达交通
+  const arrivalNodes = trip.days.flatMap(d => d.nodes.filter(n =>
+    ['train', 'flight', 'bus'].includes(n.type) &&
+    n.name && n.name.includes('→')
+  ));
+  const arrivalTransport = arrivalNodes.length > 0
+    ? arrivalNodes.map(n => `${n.name}（${n.detail || ''}）`).join('；')
+    : '待确认';
+  lines.push(`| 到达交通 | ${arrivalTransport} |`);
+
+  // 离开交通
+  const departureNodes = trip.days.flatMap(d => d.nodes.filter(n =>
+    ['train', 'flight', 'bus'].includes(n.type) &&
+    n.name && n.name.includes('→')
+  ));
+  const lastDayNodes = trip.days.length > 0
+    ? trip.days[trip.days.length - 1].nodes.filter(n =>
+        ['train', 'flight'].includes(n.type) && n.name && n.name.includes('→')
+      )
+    : [];
+  const departureTransport = lastDayNodes.length > 0
+    ? lastDayNodes.map(n => `${n.name}（${n.detail || ''}）`).join('；')
+    : '待确认';
+  lines.push(`| 离开交通 | ${departureTransport} |`);
+
+  // 当地交通
+  const localTransports = trip.days.flatMap(d => d.nodes.filter(n =>
+    ['taxi', 'car', 'selfdrive', 'bus', 'metro'].includes(n.type)
+  ));
+  const localTransport = localTransports.length > 0
+    ? [...new Set(localTransports.map(n => n.remark || n.name))].filter(Boolean).join('；') || '包车/打车/公共交通'
+    : '建议提前联系当地包车司机或使用打车软件';
+  lines.push(`| 当地交通 | ${localTransport} |`);
+  lines.push('');
+
+  // 网红推荐
+  if (trip.culture && trip.culture.recommendations) {
+    const rec = trip.culture.recommendations;
+
+    if (rec.hotels && rec.hotels.length > 0) {
+      lines.push('#### 网红酒店推荐');
+      lines.push('');
+      lines.push('| 名称 | 特色 | 参考价格 |');
+      lines.push('|------|------|---------|');
+      for (const h of rec.hotels) {
+        lines.push(`| ${h.name || ''} | ${h.feature || ''} | ${h.price || ''} |`);
+      }
+      lines.push('');
+    }
+
+    if (rec.spots && rec.spots.length > 0) {
+      lines.push('#### 网红景点推荐');
+      lines.push('');
+      lines.push('| 名称 | 亮点 | 建议时长 |');
+      lines.push('|------|------|---------|');
+      for (const s of rec.spots) {
+        lines.push(`| ${s.name || ''} | ${s.highlight || ''} | ${s.duration || ''} |`);
+      }
+      lines.push('');
+    }
+
+    if (rec.activities && rec.activities.length > 0) {
+      lines.push('#### 网红活动推荐');
+      lines.push('');
+      lines.push('| 活动 | 特色 | 适合人群 |');
+      lines.push('|------|------|---------|');
+      for (const a of rec.activities) {
+        lines.push(`| ${a.name || ''} | ${a.feature || ''} | ${a.crowd || ''} |`);
+      }
+      lines.push('');
+    }
+  } else {
+    // 占位：提示用户可搜索推荐
+    lines.push('#### 网红推荐');
+    lines.push('');
+    lines.push(`> 💡 使用 \`xiaohongshu__search_feeds\` 搜索「${trip.destination} 徒步 攻略」获取最新网红推荐。`);
+    lines.push('');
+  }
+}
+
 // ── Markdown 渲染器 ────────────────────────────────────
 
 function renderPlanReadme(trip) {
@@ -1928,7 +2288,8 @@ function renderPlanReadme(trip) {
         const costStr = node.cost != null ? `¥${node.cost}` : '';
         const transportLabel = getNodeTransportLabel(node);
         const isHiking = node.type === 'hiking';
-        const name = isHiking ? `${node.name}，${node.detail}` : node.name;
+        const routeSummary = isHiking ? ' ' + getHikeRouteSummary(node.name, trip.hikingRoutes) : '';
+        const name = isHiking ? `${node.name}，${routeSummary || node.detail}` : node.name;
         lines.push(`| ${node.time} | ${transportLabel} | ${name} | ${costStr} | ${node.remark} |`);
       }
     }
@@ -1948,30 +2309,61 @@ function renderPlanReadme(trip) {
   lines.push(`### ${trip.destination}`);
   lines.push('');
 
-  // 文化信息
-  if (trip.culture && Object.keys(trip.culture).length > 0) {
-    const cultureOrder = ['geography', 'history', 'poetry', 'relics', 'worldHeritage', 'food', 'religion', 'festivals'];
+  // 文化信息 — 强制最少4个分类
+  const cultureOrder = ['geography', 'history', 'poetry', 'relics', 'worldHeritage', 'food', 'religion', 'festivals'];
+  const cultureTitles = {
+    geography: '地理风貌',
+    history: '历史渊源',
+    poetry: '人文与诗词',
+    relics: '遗存遗迹',
+    worldHeritage: '世界遗产',
+    food: '美食特产',
+    religion: '宗教文化',
+    festivals: '民俗节庆',
+  };
+
+  if (trip.culture && Object.keys(trip.culture).filter(k => k !== 'recommendations').length > 0) {
+    const cultureKeys = Object.keys(trip.culture).filter(k => k !== 'recommendations');
+    // 先输出已有的
+    const renderedKeys = new Set();
     for (const key of cultureOrder) {
       if (trip.culture[key]) {
-        const titles = {
-          geography: '地理风貌',
-          history: '历史渊源',
-          poetry: '人文与诗词',
-          relics: '遗存遗迹',
-          worldHeritage: '世界遗产',
-          food: '美食特产',
-          religion: '宗教文化',
-          festivals: '民俗节庆',
-        };
-        lines.push(`### ${titles[key] || key}`);
+        lines.push(`### ${cultureTitles[key] || key}`);
+        lines.push('');
+        lines.push(trip.culture[key]);
+        lines.push('');
+        renderedKeys.add(key);
+      }
+    }
+    // 输出不在标准顺序中的自定义 key
+    for (const key of cultureKeys) {
+      if (!renderedKeys.has(key)) {
+        lines.push(`### ${key}`);
         lines.push('');
         lines.push(trip.culture[key]);
         lines.push('');
       }
     }
+    // 强制补齐：如果少于4个已有分类，生成占位节
+    if (renderedKeys.size < 4) {
+      const remaining = cultureOrder.filter(k => !renderedKeys.has(k));
+      const toAdd = remaining.slice(0, 4 - renderedKeys.size);
+      for (const key of toAdd) {
+        lines.push(`### ${cultureTitles[key] || key}`);
+        lines.push('');
+        lines.push(`> 💡 使用 \`web_search\` 或 \`xiaohongshu__search_feeds\` 搜索「${trip.destination} ${cultureTitles[key]}」填充此节。`);
+        lines.push('');
+      }
+    }
   } else {
-    lines.push('*待收集人文信息...*');
-    lines.push('');
+    // 完全没有文化信息：输出最少4个占位节
+    const defaultCategories = cultureOrder.slice(0, 4);
+    for (const key of defaultCategories) {
+      lines.push(`### ${cultureTitles[key] || key}`);
+      lines.push('');
+      lines.push(`> 💡 使用 \`web_search\` 搜索「${trip.destination} ${cultureTitles[key]}」获取信息填充此节。`);
+      lines.push('');
+    }
   }
 
   // 徒步路线
@@ -2066,6 +2458,9 @@ module.exports = {
   cmdConfirm,
   cmdActivate,
   cmdGeneratePlan,
+  cmdAddNode,
+  cmdRemoveNode,
+  cmdReorderNode,
 
   // 新增：订单短信解析 + 实时行程修订
   cmdSetNodeStatus,
