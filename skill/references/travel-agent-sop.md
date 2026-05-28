@@ -22,7 +22,7 @@
 >   - ⚠️ `hike-del` 删除日程后不可撤销，建议执行前手动备份 README.md
 >   - ⚠️ `hike-reorder` 重排后原顺序不可恢复
 > - `hike-select output` 切换输出目录 → 用户主动命令，直接写入 `~/.hike-planner/config.json`（不弹窗）
-> - 所有持久化文件清单：`~/.hike-planner/config.json`（全局配置）、`{outputDir}/.hike-planner-state.json`（行程状态）、`{outputDir}/upcoming/{tripId}/README.md`（行程计划）
+> - 所有持久化文件清单：`~/.hike-planner/config.json`（全局配置）、`{outputDir}/.hike-planner-state.json`（行程状态）、`{outputDir}/upcoming/{tripId}/{planFilename}`（行程计划）
 
 ---
 
@@ -188,7 +188,7 @@
 - [ ] 确认交通偏好（自驾/火车/飞机）
 - [ ] 确认住宿偏好（亚朵/汉庭/其他）
 - [ ] 创建行程目录前**征得用户明确同意**（告知输出路径和数据范围）
-- [ ] 创建行程目录 `trip/upcoming/<目的地>-<日期>/`
+- [ ] 创建行程目录 `{outputDir}/upcoming/<destination-slug>-<YYYY-MM>/`
 - [ ] 查天气确认是否合适
 - [ ] 火车票用 12306 skill 验证（**不能留占位符如"待补充"**）
 - [ ] 城际/包车段距离用 amap-lbs-skill 校验
@@ -201,8 +201,23 @@
 
 ### 5.1 文件路径
 
-- 即将出行：`trip/upcoming/<目的地>-<YYYY-MM>/README.md`
-- 已完成：`trip/completed/<目的地>-<YYYY-MM>/README.md`
+- 即将出行：`{outputDir}/upcoming/<destination-slug>-<YYYY-MM>/<实际标题>.md`
+- 已完成：`{outputDir}/completed/<destination-slug>-<YYYY-MM>/<实际标题>.md`
+
+**命名规则**：
+
+| 组成部分 | 规则 | 示例 |
+|---------|------|------|
+| 目录名 | `<destination-slug>-<YYYY-MM>`（pinyin/英文小写 + 连字符，日期带分隔符） | `haituo-2026-06`、`japan-tokyo-kyoto-osaka-2026-08` |
+| 文件名 | `<实际标题>.md`（文档一级标题，去 emoji，保留 `·` `→` 等合法字符） | `海坨山姜庄子村小环线出行计划.md`、`日本·东京→京都→大阪 8天行程规划.md` |
+
+**示例**：
+
+| 目录 | 计划文件 |
+|------|---------|
+| `haituo-2026-06/` | `海坨山姜庄子村小环线出行计划.md` |
+| `wutaishan-2026-06/` | `五台山出行计划.md` |
+| `japan-tokyo-kyoto-osaka-2026-08/` | `日本·东京→京都→大阪 8天行程规划.md` |
 
 ### 5.2 文档模板
 

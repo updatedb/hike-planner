@@ -254,24 +254,28 @@ function getToday() {
   return `${y}-${m}-${d}`;
 }
 
-function generateTripId(destination, startDate) {
-  const slug = destination.replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, '').toLowerCase();
-  const date = startDate.replace(/-/g, '').substring(0, 6);
-  return `${slug}-${date}`;
+function generateTripId(destination, startDate, slug) {
+  const s = slug || destination
+    .replace(/[\u4e00-\u9fa5]/g, '')        // strip Chinese chars
+    .replace(/[^a-zA-Z0-9-]/g, '')           // keep alphanumeric + hyphen
+    .toLowerCase()
+    .replace(/-+/g, '-')                      // collapse consecutive hyphens
+    .replace(/^-|-$/g, '');                   // trim leading/trailing hyphens
+  const date = startDate.substring(0, 7);    // YYYY-MM
+  return s ? `${s}-${date}` : date;
 }
 
 /**
- * 根据行程数据生成计划文件名（基于文档标题）
- * 格式: <目的地>·<首日主题>出行计划.md
- * 例: 海坨山·姜庄子村小环线出行计划.md
+ * 根据行程数据生成计划文件名（基于 trip.title 实际标题）
+ * 格式: <标题>.md
+ * 例: 海坨山姜庄子村小环线出行计划.md、日本·东京→京都→大阪 8天行程规划.md
  */
 function getPlanFilename(trip) {
-  // 直接从文档一级标题提取文件名：去 emoji、空格、非法字符
-  // 文档标题格式：# 🥾 <目的地> 出行计划
-  const h1 = `🥾 ${trip.destination || '旅行'} 出行计划`;
+  // 从 trip.title 提取（如不存在则 fallback 到默认标题）
+  const h1 = trip.title || `🥾 ${trip.destination || '旅行'} 出行计划`;
   const safe = h1
     .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}]/gu, '')  // 去 emoji
-    .replace(/[\\/:*?"<>|#\n\r ]/g, '')  // 去非法字符 + 空格
+    .replace(/[\\/:*?"<>|]/g, '')           // 仅去非法文件名字符，保留 ·→空格中文等
     .trim();
   return safe + '.md';
 }
@@ -346,6 +350,7 @@ function createTripPlan(destination, options) {
   const now = new Date().toISOString();
   return {
     tripId: '',
+    title: '',
     status: STATUS.COLLECTING,
     destination: destination || '',
     destinationRegion: '',  // 目的地省市区县，用于地理编码消歧义
@@ -496,6 +501,7 @@ function cmdInit(startDate, destination, activity, options) {
   trip.tripId = generateTripId(destination, startDate);
   trip.dates.start = startDate;
   trip.dates.end = startDate; // 默认单日，后续通过 cmdSetRequirements 修正
+  trip.title = `🥾 ${destination} 出行计划`;
 
   // 活动描述写入 interests + fitness 推导
   const activityParts = (activity || '').split(/[+、\/]/).map(s => s.trim()).filter(Boolean);
@@ -602,6 +608,7 @@ function _cmdInitLegacy(destination, options) {
 
   const trip = createTripPlan(destination, options);
   trip.tripId = generateTripId(destination, getToday());
+  trip.title = `🥾 ${destination} 出行计划`;
 
   state.trips[trip.tripId] = trip;
   state.activeTripId = trip.tripId;
@@ -649,6 +656,7 @@ function cmdSetRequirements(requirements) {
   if (r.startDate) trip.dates.start = r.startDate;
   if (r.endDate) trip.dates.end = r.endDate;
   if (r.startDate && !r.endDate) trip.dates.end = r.startDate;
+  if (r.title) trip.title = r.title;
 
   // 更新出发/返回地
   if (r.origin) trip.origin = r.origin;
@@ -2452,8 +2460,11 @@ function renderDayMap(dayIndex, stops, region, coords) {
 function renderPlanReadme(trip) {
   const lines = [];
 
-  // 标题
-  lines.push(`# 🥾 ${trip.destination} 出行计划`);
+  // 标题（优先 trip.title，空则 fallback）
+  const h1 = trip.title
+    ? `# ${trip.title}`
+    : `# 🥾 ${trip.destination || '旅行'} 出行计划`;
+  lines.push(h1);
   lines.push('');
   lines.push(`**出行日期**：${formatFullDate(trip.dates.start)} - ${formatFullDate(trip.dates.end)}`);
   lines.push(`**目的地**：${trip.destination}`);
