@@ -4,12 +4,13 @@
  * 6 条主命令：cmdInit / cmdStatus / cmdToday / cmdLog / cmdList / cmdSet
  * Agent 通过 module.exports 调用各函数，逐步填充 TripPlan，最终生成 README.md。
  *
- * v0.4.0
+ * v1.2.0
  */
 
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { execSync } = require('child_process');
 
 // ── 常量 ──────────────────────────────────────────────
 
@@ -363,6 +364,62 @@ function createTripPlan(destination, options) {
   };
 }
 
+// ── 命令：hike（纯查询） ─────────────────────────────
+
+/**
+ * 查询目的地介绍 + 经典徒步路线。纯查询模式，不创建行程、不管理状态。
+ *
+ * @param {string} destination - 目的地（必填）
+ * @param {string} [activity] - 活动类型（可选，如 "徒步"）
+ * @returns {object} { queryMode, destination, cultureSearch, routeSearch, outputTemplate }
+ */
+function cmdHike(destination, activity) {
+  if (!destination || typeof destination !== 'string' || destination.trim().length === 0) {
+    return { error: '请指定目的地，例如：hike 四姑娘山' };
+  }
+
+  const dest = destination.trim();
+
+  return {
+    queryMode: true,
+    destination: dest,
+    activity: activity || null,
+    message: '此结果为查询模式，不接入行程管理。如需创建行程计划，请使用 hike-init。',
+
+    // 文化信息搜索任务
+    cultureSearch: {
+      categories: ['地理风貌', '历史渊源', '人文与诗词', '遗存遗迹', '美食特产'],
+      tasks: [
+        { source: 'wikipedia', query: dest, purpose: '地理风貌、历史渊源、文化背景' },
+        { source: 'web_search', query: `${dest} 历史文化 诗词`, purpose: '人文诗词、典故、名人' },
+        { source: 'xiaohongshu', query: `${dest} 美食 特产`, purpose: '当地特色美食、推荐店铺' },
+      ],
+    },
+
+    // 徒步路线搜索任务
+    routeSearch: {
+      tasks: [
+        { source: '两步路', query: `${dest} 徒步 轨迹`, purpose: '经典徒步路线 + GPX 轨迹数据' },
+        { source: 'xiaohongshu', query: `${dest} 徒步路线 攻略`, purpose: '真实用户经验和实拍照片' },
+        { source: 'bilibili', query: `${dest} 徒步 vlog`, purpose: '视频实拍路况和体验' },
+      ],
+    },
+
+    // 输出格式指引
+    outputTemplate: {
+      culture: {
+        header: '## 行程详情',
+        sections: '按 3-5 个类别输出（地理风貌/历史渊源/人文与诗词/遗存遗迹/美食特产等），每类 2-4 句话，标注信息来源',
+      },
+      routes: {
+        header: '## 徒步路线详情',
+        fields: ['路线名', '距离', '爬升', '下降', '预计用时', '路线类型', '关键节点', '⚠️ 提示'],
+      },
+      footer: '> 📌 此结果为查询模式，不接入行程管理。如需创建行程计划，请使用 `hike-init`。',
+    },
+  };
+}
+
 // ── 命令：hike-init ───────────────────────────────────
 
 /**
@@ -375,7 +432,7 @@ function createTripPlan(destination, options) {
  * @param {string} startDate - 出发日期 YYYY-MM-DD（必填）
  * @param {string} destination - 目的地（必填）
  * @param {string} activity - 活动描述，如 "徒步+文化探访"（必填）
- * @param {object} [options] - { outputDir }
+ * @param {object} [options] - { outputDir, confirmed }
  * @returns {object} { tripId, status, collectPrompt } — collectPrompt 仅含缺失的补充问题
  */
 function cmdInit(startDate, destination, activity, options) {
@@ -405,6 +462,17 @@ function cmdInit(startDate, destination, activity, options) {
         activeTripId: activeTrip.tripId,
       };
     }
+  }
+
+  // ── 持久化同意确认 ──
+  // 首次调用（无 confirmed）返回同意请求；用户确认后传 { confirmed: true } 继续
+  if (!opts.confirmed) {
+    return {
+      needsConsent: true,
+      consentType: 'output_dir',
+      outputDir: outputDir,
+      message: `行程计划将保存到 ${outputDir}。同一服务器的其他用户可能可以查看这些数据。是否继续？`,
+    };
   }
 
   const trip = createTripPlan(destination, opts);
@@ -475,8 +543,9 @@ function cmdInit(startDate, destination, activity, options) {
         : `还需以下信息：`,
       questions: hasAll ? optionalQuestions : [...missing, ...optionalQuestions],
     },
+    amapNotice: '🗺️  行程站点名称将通过网络发送给高德地图（Amap）API 以生成地图链接。',
     nextSteps: [
-      'search_routes: 搜索徒步路线（两步路+小红书+B站）',
+      'search_routes: 搜索徒步路线（两步路 https://www.2bulu.com/track + 小红书 + B站）',
       'search_transport: 查询大交通（12306/flyai）',
       'search_hotels: 查询酒店（flyai/web_search）',
       'search_culture: 收集人文信息（Wikipedia/xiaohongshu）',
@@ -501,6 +570,16 @@ function _cmdInitLegacy(destination, options) {
         activeTripId: activeTrip.tripId,
       };
     }
+  }
+
+  // ── 持久化同意确认 ──
+  if (!options || !options.confirmed) {
+    return {
+      needsConsent: true,
+      consentType: 'output_dir',
+      outputDir: outputDir,
+      message: `行程计划将保存到 ${outputDir}。同一服务器的其他用户可能可以查看这些数据。是否继续？`,
+    };
   }
 
   const trip = createTripPlan(destination, options);
@@ -620,8 +699,9 @@ function cmdSetRequirements(requirements) {
       participants: trip.participants,
       preferences: trip.preferences,
     },
+    amapNotice: '🗺️  行程站点名称将通过网络发送给高德地图（Amap）API 以生成地图链接。',
     nextSteps: [
-      'search_routes: 搜索徒步路线（两步路+小红书+B站）',
+      'search_routes: 搜索徒步路线（两步路 https://www.2bulu.com/track + 小红书 + B站）',
       'search_transport: 查询大交通（12306/flyai）',
       'search_hotels: 查询酒店（flyai/web_search）',
       'search_culture: 收集人文信息（Wikipedia/xiaohongshu）',
@@ -969,7 +1049,7 @@ function parseOrderSMS(text) {
         if (!toSta.endsWith('站') && !/(?:东|南|西|北|关|桥|口|岭)$/.test(toSta)) toSta += '站';
         return {
           type: 'train',
-          data: { carNum, fromSta, fromTime, toSta, toTime, seat, orderId, raw: text },
+          data: { carNum, fromSta, fromTime, toSta, toTime, seat, orderId },
         };
       }
     }
@@ -990,7 +1070,7 @@ function parseOrderSMS(text) {
         }
         return {
           type: 'flight',
-          data: { flightNum, fromCity, toCity, date, fromTime, toTime, seat, orderId, raw: text },
+          data: { flightNum, fromCity, toCity, date, fromTime, toTime, seat, orderId },
         };
       }
     }
@@ -1016,9 +1096,11 @@ function parseOrderSMS(text) {
           [hotelName, checkIn, roomType, orderId] = groups;
           checkOut = '';
         }
+        // 从原始短信中推断是否含早，不保留 raw 文本
+        const hasBreakfast = /含.*[早双]/.test(text);
         return {
           type: 'hotel',
-          data: { hotelName, checkIn, checkOut, roomType, orderId, raw: text },
+          data: { hotelName, checkIn, checkOut, roomType, orderId, hasBreakfast },
         };
       }
     }
@@ -1151,7 +1233,7 @@ function applySMSToTrip(trip, sms) {
         type: 'hotel',
         name: data.hotelName,
         detail: `${data.roomType}`,
-        remark: `${i === 0 ? `入住${data.checkIn}，` : ''}退房${data.checkOut}，订单${data.orderId}${i > 0 ? '（续住）' : ''}${/含.*[早双]/.test(data.raw || '') ? '，含早' : ''}`,
+        remark: `${i === 0 ? `入住${data.checkIn}，` : ''}退房${data.checkOut}，订单${data.orderId}${i > 0 ? '（续住）' : ''}${data.hasBreakfast ? '，含早' : ''}`,
       };
 
       const existingIdx = day.nodes.findIndex(
@@ -1364,10 +1446,12 @@ function cmdSetNodeStatus(tripId, dayIndex, nodeIndex, status, actual) {
  * @param {string} text - 日志文本或订单短信
  * @param {string} [dateStr] - 日期，默认今天
  */
-function cmdLog(text, dateStr) {
+function cmdLog(text, dateStr, options) {
   const { state } = loadStateWithFallback();
   const trip = getTrip(state);
   if (!trip) return { error: '没有活动的行程' };
+
+  const opts = (typeof options === 'object' && options !== null) ? options : {};
 
   const logDate = dateStr || getToday();
   const logEntry = {
@@ -1447,7 +1531,21 @@ function cmdLog(text, dateStr) {
   }
 
   // ── 5. 尝试订单 SMS 解析 ──
-  const sms = parseOrderSMS(text);
+  // 先快速检测文本是否包含订单特征关键词，如有则需要用户同意
+  const smsKeywords = /订单|车次|航班|预订|入住|退房|12306|携程|航旅|飞猪/i;
+  let sms = null;
+  if (opts.confirmed || !smsKeywords.test(text)) {
+    sms = parseOrderSMS(text);
+  } else {
+    // 检测到疑似订单短信，要求用户确认
+    return {
+      needsConsent: true,
+      consentType: 'sms_parse',
+      tripId: trip.tripId,
+      message: '⚠️ 您提供的短信内容（含订单号、日期、车次/航班/酒店名称等出行信息）将被保存在本地服务器上。同一服务器的其他用户可能可以查看这些数据。是否继续？',
+    };
+  }
+
   if (sms) {
     logEntry.smsType = sms.type;
     const smsResult = applySMSToTrip(trip, sms);
@@ -2240,6 +2338,43 @@ function renderTravelAdvice(trip, lines) {
   }
 }
 
+// ── 地图链接自动生成 ─────────────────────────────
+
+/**
+ * 为指定 day 自动生成高德地图可视化路线链接
+ * @param {number} dayIndex - day 索引
+ * @param {string[]} stops - 节点名称列表
+ * @returns {{ link: string|null, error: string|null }}
+ */
+function renderDayMap(dayIndex, stops) {
+  const key = process.env.AMAP_WEBSERVICE_KEY;
+  if (!key) {
+    return { link: null, error: '未设置 AMAP_WEBSERVICE_KEY 环境变量，无法生成地图链接' };
+  }
+
+  if (!stops || stops.length < 2) {
+    return { link: null, error: '节点数量不足（至少需要2个节点）' };
+  }
+
+  const stopsStr = stops.map(s => s.replace(/,/g, ' ')).join(',');
+  const scriptPath = path.join(__dirname, 'render-itinerary-map.js');
+
+  try {
+    const env = { ...process.env, AMAP_WEBSERVICE_KEY: key };
+    const result = execSync(
+      `node "${scriptPath}" --stops="${stopsStr}" --routeType=driving`,
+      { timeout: 30000, encoding: 'utf8', env }
+    );
+    const match = result.match(/https:\/\/a\.amap\.com\/[^\s\n]+/);
+    if (match) {
+      return { link: match[0], error: null };
+    }
+    return { link: null, error: '无法从地图渲染脚本输出中提取链接' };
+  } catch (e) {
+    return { link: null, error: `地图链接生成失败: ${e.message}` };
+  }
+}
+
 // ── Markdown 渲染器 ────────────────────────────────────
 
 function renderPlanReadme(trip) {
@@ -2295,6 +2430,19 @@ function renderPlanReadme(trip) {
     lines.push('');
     if (day.mapUrl) {
       lines.push(`> 🗺️ [查看地图](${day.mapUrl})`);
+    } else if (day.nodes.length >= 2) {
+      // 自动生成地图链接
+      const stopNames = day.nodes.map(n => n.name).filter(Boolean);
+      if (stopNames.length >= 2) {
+        const { link, error } = renderDayMap(day.dayIndex, stopNames);
+        if (link) {
+          day.mapUrl = link;
+          if (!trip.mapUrls.includes(link)) trip.mapUrls.push(link);
+          lines.push(`> 🗺️ [查看地图](${link})`);
+        } else if (error) {
+          lines.push(`> 🗺️ *${error}*`);
+        }
+      }
     }
     if (day.dayCost > 0) {
       lines.push(`> 💰 本日费用：约¥${day.dayCost}`);
@@ -2365,12 +2513,12 @@ function renderPlanReadme(trip) {
     }
   }
 
-  // 徒步路线
+  // ── 徒步路线详情（独立顶级章节，与总览/每日安排/行程详情同级） ──
   if (trip.hikingRoutes.length > 0) {
-    lines.push('### 徒步路线详情');
+    lines.push('## 徒步路线详情');
     lines.push('');
     for (const route of trip.hikingRoutes) {
-      lines.push(`#### ${route.name}`);
+      lines.push(`### ${route.name}`);
       lines.push('');
       lines.push('| 项目 | 数据 |');
       lines.push('|------|------|');
@@ -2423,6 +2571,111 @@ function renderPlanReadme(trip) {
   return lines.join('\n');
 }
 
+// ── 模板完整性检查 ──────────────────────────────────
+
+/**
+ * 对照 PLAN_TEMPLATE 检查生成的 README 内容是否包含所有必需板块。
+ * 在计划生成完成后调用，确保输出质量。
+ *
+ * @param {string} content - renderPlanReadme 的输出
+ * @returns {{ complete: boolean, missing: string[], warnings: string[] }}
+ */
+function validatePlanReadme(content, trip) {
+  const missing = [];
+  const warnings = [];
+
+  // ── 顶级章节检查（必须包含） ──
+  const requiredHeadings = [
+    { pattern: /^## 总览/m, name: '总览' },
+    { pattern: /^## 每日安排/m, name: '每日安排' },
+    { pattern: /^## 行程详情/m, name: '行程详情' },
+    { pattern: /^## 徒步路线详情/m, name: '徒步路线详情' },
+    { pattern: /^## 装备清单/m, name: '装备清单' },
+    { pattern: /^## 待办事项/m, name: '待办事项' },
+  ];
+
+  for (const { pattern, name } of requiredHeadings) {
+    if (!pattern.test(content)) {
+      missing.push(name);
+    }
+  }
+
+  // ── 总览表检查 ──
+  if (/^## 总览/m.test(content)) {
+    if (!/^\| 日期 \|/m.test(content)) {
+      warnings.push('总览 - 缺少日期表头');
+    }
+    // 每个 day 应该有对应行
+    if (trip && trip.days) {
+      const overviewLines = (content.match(/^\| \d{1,2}\/\d{1,2} \|/gm) || []).length;
+      if (overviewLines < trip.days.length) {
+        warnings.push(`总览表 - 期望 ${trip.days.length} 行，实际 ${overviewLines} 行`);
+      }
+    }
+  }
+
+  // ── 每日安排检查 ──
+  if (/^## 每日安排/m.test(content)) {
+    if (trip && trip.days) {
+      for (const day of trip.days) {
+        const dayHeader = `DAY ${day.dayIndex}`;
+        if (!content.includes(dayHeader)) {
+          warnings.push(`每日安排 - 缺少 ${dayHeader}`);
+        }
+        // 地图链接检查
+        if (day.nodes.length >= 2 && !content.includes(`[查看地图]`)) {
+          warnings.push(`${dayHeader} - 缺少地图链接`);
+        }
+      }
+    }
+  }
+
+  // ── 行程详情检查（至少 3 个文化分类） ──
+  if (/^## 行程详情/m.test(content)) {
+    const cultureHeadings = (content.match(/^### (?!DAY )(?!.*路线)(?!.*建议)(?!.*推荐)[^\n]+/gm) || []);
+    if (cultureHeadings.length < 3) {
+      warnings.push(`行程详情 - 仅 ${cultureHeadings.length} 个文化分类（建议 ≥3）`);
+    }
+    // 出行建议检查
+    if (!/出行建议/i.test(content)) {
+      warnings.push('行程详情 - 缺少「出行建议」节（交通/网红酒店/网红景点/网红活动）');
+    }
+  }
+
+  // ── 徒步路线详情检查 ──
+  if (/^## 徒步路线详情/m.test(content) && trip && trip.hikingRoutes && trip.hikingRoutes.length > 0) {
+    for (const route of trip.hikingRoutes) {
+      if (!content.includes(route.name)) {
+        warnings.push(`徒步路线详情 - 缺少路线「${route.name}」`);
+      }
+    }
+    // 必须有徒步路线表格字段
+    if (!/\| 距离 \|/m.test(content)) {
+      warnings.push('徒步路线详情 - 缺少徒步路线数据表格');
+    }
+  }
+
+  // ── 装备清单检查 ──
+  if (/^## 装备清单/m.test(content)) {
+    if (!/\| 类型 \|/m.test(content)) {
+      warnings.push('装备清单 - 缺少表格');
+    }
+  }
+
+  // ── 待办事项检查 ──
+  if (/^## 待办事项/m.test(content)) {
+    if (!/\- \[.\]/m.test(content)) {
+      warnings.push('待办事项 - 无清单项');
+    }
+  }
+
+  return {
+    complete: missing.length === 0,
+    missing,
+    warnings,
+  };
+}
+
 // ── 导出 ──────────────────────────────────────────────
 
 module.exports = {
@@ -2433,7 +2686,8 @@ module.exports = {
   DEFAULT_OUTPUT_DIR,
   CONFIG_FILE,
 
-  // 7 条主命令
+  // 8 条主命令
+  cmdHike,
   cmdInit,
   cmdStatus,
   cmdToday,
@@ -2488,4 +2742,6 @@ module.exports = {
   getToday,
   addDays,
   renderPlanReadme,
+  renderDayMap,
+  validatePlanReadme,
 };

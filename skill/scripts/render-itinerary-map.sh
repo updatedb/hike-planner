@@ -19,16 +19,7 @@
 #                 - 火车/飞机 → straight（直线）
 #
 
-AMAP_KEY=""
-for cfg in \
-  "$HOME/.openclaw/skills/amap-lbs-skill/config.json" \
-  "$HOME/.openclaw/config.json"; do
-  if [ -f "$cfg" ]; then
-    K=$(grep -o '"webServiceKey"[[:space:]]*:[[:space:]]*"[^"]*"' "$cfg" 2>/dev/null | head -1 | sed 's/.*"://;s/"//')
-    [ -n "$K" ] && AMAP_KEY="$K" && break
-  fi
-done
-AMAP_KEY="${AMAP_KEY:-${AMAP_WEBSERVICE_KEY:-}}"
+AMAP_KEY="${AMAP_WEBSERVICE_KEY:-}"
 
 if [ -z "$AMAP_KEY" ]; then
   echo "❌ 未找到高德 Web Service Key，请设置环境变量 AMAP_WEBSERVICE_KEY"
@@ -70,6 +61,7 @@ fi
 
 echo ""
 echo "🗺️  正在渲染行程地图..."
+echo "⚠️  隐私提示：行程站点名称将通过网络发送给高德地图（Amap）API 进行地理编码。"
 echo "📍 节点数量: ${#STOPS[@]}"
 [ -n "$ROUTE_TYPES_STR" ] && echo "🛣️  路线类型: $ROUTE_TYPES_STR"
 echo ""

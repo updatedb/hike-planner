@@ -13,20 +13,10 @@ const path = require('path');
 const fs = require('fs');
 
 // 高德 Web Service Key 读取
+// 仅从环境变量或全局配置读取，不跨 skill 读取凭据
 function getAmapKey() {
   const envKey = process.env.AMAP_WEBSERVICE_KEY;
   if (envKey) return envKey;
-
-  const skillConfig = path.join(
-    process.env.HOME || '/home/openclaw',
-    '.openclaw/skills/amap-lbs-skill/config.json'
-  );
-  try {
-    if (fs.existsSync(skillConfig)) {
-      const cfg = JSON.parse(fs.readFileSync(skillConfig, 'utf8'));
-      if (cfg.webServiceKey) return cfg.webServiceKey;
-    }
-  } catch (e) {}
 
   return null;
 }
@@ -78,7 +68,7 @@ async function main() {
   if (!key) {
     console.error('❌ 未找到高德 Web Service Key');
     console.log('请设置环境变量: export AMAP_WEBSERVICE_KEY=你的Key');
-    console.log('或配置: ~/.openclaw/skills/amap-lbs-skill/config.json');
+
     process.exit(1);
   }
 
@@ -93,7 +83,8 @@ async function main() {
     process.exit(1);
   }
 
-  console.log(`\n🗺️  正在渲染行程地图...\n`);
+  console.log(`\n🗺️  正在渲染行程地图...`);
+  console.log(`⚠️  隐私提示：行程站点名称将通过网络发送给高德地图（Amap）API 进行地理编码。`);
   console.log(`📍 节点数量: ${stops.length}`);
   console.log(`🛣️  路线类型: ${routeType}\n`);
 

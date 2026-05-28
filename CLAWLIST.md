@@ -22,3 +22,81 @@
   - [x] fix: cmdReorderDay no-op 返回补充 ok:true ✅
 - [x] Tester → 回归验证 ✅ (28/28 PASS)
 - [x] ClawHub 发布 → v1.1.0 ✅
+- [x] 安全审计修复 + /hike 命令 (v1.2.0) ✅
+  - [x] 新增 /hike 纯查询命令（cmdHike）✅
+  - [x] SKILL.md 新增安全隐私声明（底部）✅
+  - [x] 重新定位：从0逐步完善行程计划 ✅
+  - [x] "管理票务和预订酒店" → "查询可用的票务、酒店信息" ✅
+  - [x] "行程后" → "记录实际出行信息，更新行程计划，完善出行喜好" ✅
+  - [x] 删除 SOP 第十节"配置文件安全规则" ✅
+  - [x] SOP 第七节"火车票查询与购买规范" → "火车票查询规范" + 删除购买/候补 ✅
+  - [x] flyai 条目补全别名 + 场景修正 ✅
+  - [x] cmdLog 短信隐私警告（需确认）✅
+  - [x] cmdInit 持久化同意（需确认 outputDir）✅
+  - [x] 高德数据传输说明 ✅
+  - [x] 删除 test-v0.4.0.js ✅
+  - [x] execSync curl — 保留（核心功能）✅
+- [x] Tester → 回归验证 ✅ (43/43 PASS)
+- [x] SOP 大幅简化 (v1.2.1) ✅
+  - [x] 删除「服务对象」「协作链路」个人化信息 ✅
+  - [x] 5.2 文档模板 → 引用 PLAN_TEMPLATE.md ✅
+  - [x] 12306/amap 脚本路径 → 相对目录（去 ~/ 前缀）✅
+  - [x] 删除「九、Self-Improving 机制」✅
+  - [x] 删除「十、项目目录结构」✅
+  - [x] 删除「十一、群聊规范」✅
+  - [x] 章节 十一→八，440 行 → 356 行 ✅
+- [x] ClawHub 安全审查修复 (v1.3.0) ✅
+  - [x] F1: _meta.json → 添加 permissions 声明（文件系统/网络/环境变量/命令执行）✅
+  - [x] F2: SKILL.md → 增强隐私声明：明确 raw SMS 不保留、重申写入前同意 ✅
+  - [x] F3: hike-planner.js → 移除 SMS raw 文本存储，按 hasBreakfast 布尔值替代 ✅
+  - [x] F4: render-itinerary-map.js → 移除跨 skill 凭据读取（amap-lbs-skill/config.json）✅
+  - [x] F4: render-itinerary-map.sh → 移除跨 skill 凭据读取 ✅
+  - [x] F5: _meta.json + SKILL.md → 精炼 description，增加激活边界 ✅
+  - [x] F6: travel-agent-sop.md → 启动清单增加"征得用户同意"步骤 ✅
+  - [x] F7: travel-agent-sop.md → 核心职责补充"所有文件写入需用户同意" ✅
+  - [x] F8: render-itinerary-map.js → 添加高德 API 调用隐私通知 ✅
+  - [x] F9: render-itinerary-map.sh → 添加高德 API 调用隐私通知 ✅
+  - [x] 版本号 → v1.3.0 ✅
+  - [x] 重新打包 dist/skill.skill（清理 bak 文件，50KB vs 旧版 365KB）✅
+  - [x] 发布到 ClawHub ✅ (k978hpd9hmzyqwspwtshm8y64187en80)
+- [x] SKILL.md 清理 (v1.3.1) ✅
+  - [x] 删除版本表（_meta.json 为唯一权威来源）✅
+  - [x] 删除 🔒 安全与隐私声明（受众错位，已分散到 _meta.json + 命令表）✅
+  - [x] 版本 → 1.3.1
+  - [x] 发布到 ClawHub ✅ (k970fqb4j9c7r1nd1skrsgzs3587fsna)
+- [x] ClawHub 安全审查修复第二轮 (v1.3.2) ✅
+  - [x] SOP 裁剪：移除订票/购买/候补/Gmail/日历/记忆等 scope creep ✅
+  - [x] SOP 标题+角色："旅行管家+应急协调员"→"徒步行程规划助手" ✅
+  - [x] Skills 表：移除 travel-manager/gws-gmail/gws-calendar/browser 订票 ✅
+  - [x] Skills 表：12306"下单、候补"→"时刻/票价/经停站查询" ✅
+  - [x] 后处理："补充记忆"→"记录实际→与计划对比→归档" ✅
+  - [x] 删除 render-itinerary-map.js/.sh 全局 config.json 凭据读取，仅用 env var ✅
+  - [x] doc 修正："所有写入需同意"→区分 init 同意 vs 编辑命令自动写入 ✅
+  - [x] _meta.json description 覆盖全部实际能力 ✅
+  - [x] 版本 → 1.3.2
+  - [x] 发布到 ClawHub ✅ (k971ax65brmmrkcgx5w2rs17hs87emyn)
+- [x] SOP 主动推送清理 (v1.3.3) ✅
+  - [x] 3.3 节「每个关键节点前主动推送」→「用户驱动的 hike-status/hike-today/hike-log」✅
+  - [x] 版本备注补充「主动推送」已移除 ✅
+  - [x] 发布到 ClawHub ✅ (k9704kt8bbt6qzkxhdqtp9hdgd87hy0n)
+- [x] PLAN_TEMPLATE 第三方搜索声明 (v1.3.4) ✅
+  - [x] 模板顶部 + 出行建议节：标注 web_search/xiaohongshu/Wikipedia 数据传输 ✅
+  - [x] 发布到 ClawHub ✅ (k97ash8yy5p94bbns1fw65jw7n87gtbv)
+- [x] PLAN_TEMPLATE 声明细化 + SOP 写入规则精确化 (v1.3.5) ✅
+  - [x] PLAN_TEMPLATE：明确仅传输最小必要查询词、不含个人行程数据 ✅
+  - [x] SOP 写入规则：列出全部持久化文件 + 逐一标注弹窗/不弹窗行为 ✅
+  - [x] 发布到 ClawHub ✅ (k973z392gn3sm426egydjqngns87h7zc)
+- [x] SKILL.md frontmatter permissions + 破坏性命令标注 (v1.3.6) ✅
+  - [x] YAML frontmatter 添加 permissions 字段（Reviewer 可能只看 frontmatter） ✅
+  - [x] hike-del/hike-reorder 命令表标注 ⚠️ 立即写入+不可撤销 ✅
+  - [x] SOP 文件写入规则标注备份建议 ✅
+  - [x] 发布到 ClawHub ✅ (k970tpxbe90jv1d44mbg87f0td87hq5z)
+
+### 策略决策（2026-05-27）
+> 对于 reviewer 反复标记的「文件写入前无确认弹窗」类 finding（saveConfig / README 覆盖写），
+> 决策：**继续加文档声明，不加弹窗**。
+> 理由：这些写入均由用户主动命令触发（hike-select/add/del/reorder），隐式同意已成立；
+> 弹窗确认属于 UX 降级。文档侧已在 v1.3.2 区分「init 同意」vs「编辑命令自动写入」。
+
+- [x] v1.3.7: 徒步路线详情提升为顶级章节 + 地图链接自动生成（AMAP API Key） ✅
+- [x] v1.3.8: 两步路固定 URL + 浏览器 fallback + 模板完整性自动检查 ✅
