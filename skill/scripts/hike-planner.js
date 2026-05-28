@@ -266,12 +266,12 @@ function generateTripId(destination, startDate) {
  * 例: 海坨山·姜庄子村小环线出行计划.md
  */
 function getPlanFilename(trip) {
-  // 直接从文档一级标题提取文件名：去 emoji + 非法字符
+  // 直接从文档一级标题提取文件名：去 emoji、空格、非法字符
   // 文档标题格式：# 🥾 <目的地> 出行计划
   const h1 = `🥾 ${trip.destination || '旅行'} 出行计划`;
   const safe = h1
     .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}]/gu, '')  // 去 emoji
-    .replace(/[\\/:*?"<>|#\n\r]/g, '')  // 去非法文件名字符
+    .replace(/[\\/:*?"<>|#\n\r ]/g, '')  // 去非法字符 + 空格
     .trim();
   return safe + '.md';
 }
