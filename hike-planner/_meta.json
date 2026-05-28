@@ -2,8 +2,8 @@
   "name": "Hike Planner",
   "ownerId": "kn73h0b3vxspe7143ad7dk07xn822pwv",
   "slug": "hike-planner",
-  "version": "1.5.0",
-  "description": "v1.5.0: 统一命名规则 - 目录名 destination-slug-YYYY-MM, 文件名从实际标题提取",
+  "version": "1.5.1",
+  "description": "v1.5.1: 包目录 skill → hike-planner",
   "keywords": [
     "hiking",
     "trip",
