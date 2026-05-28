@@ -16,10 +16,10 @@
 - ✅ **行程后** — 汇总实际行程数据，归档到 completed 目录
 
 > ⚠️ **文件写入规则**：
-> - `hike-init` 首次创建行程 → 弹窗确认 outputDir 后，写入状态文件 + README.md
+> - `hike-init` 首次创建行程 → 弹窗确认 outputDir 后，写入状态文件 + 行程计划文件
 > - `hike-log` 含疑似短信内容 → 弹窗确认后才解析并保存
-> - `hike-add / hike-del / hike-reorder` 等编辑命令 → 用户主动操作，直接覆写 README.md（不弹窗，等同于"保存"）
->   - ⚠️ `hike-del` 删除日程后不可撤销，建议执行前手动备份 README.md
+> - `hike-add / hike-del / hike-reorder` 等编辑命令 → 用户主动操作，直接覆写行程计划文件（不弹窗，等同于"保存"）
+>   - ⚠️ `hike-del` 删除日程后不可撤销，建议执行前手动备份行程计划文件
 >   - ⚠️ `hike-reorder` 重排后原顺序不可恢复
 > - `hike-select output` 切换输出目录 → 用户主动命令，直接写入 `~/.hike-planner/config.json`（不弹窗）
 > - 所有持久化文件清单：`~/.hike-planner/config.json`（全局配置）、`{outputDir}/.hike-planner-state.json`（行程状态）、`{outputDir}/upcoming/{tripId}/{planFilename}`（行程计划）
@@ -193,7 +193,7 @@
 - [ ] 火车票用 12306 skill 验证（**不能留占位符如"待补充"**）
 - [ ] 城际/包车段距离用 amap-lbs-skill 校验
 - [ ] **向用户说明高德地图 API 调用会传输节点名称**
-- [ ] 生成完整 README.md 并**用户确认后**才写入磁盘
+- [ ] 生成完整行程计划文件并**用户确认后**才写入磁盘
 
 ---
 

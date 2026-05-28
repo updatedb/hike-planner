@@ -121,31 +121,80 @@ async function renderWithCoords(args, key) {
   console.log('');
 
   const mapTaskData = [];
+
+  // 所有坐标点日志
   for (let i = 0; i < coords.length; i++) {
     const name = names[i] || `节点${i + 1}`;
     console.log(`  [${i + 1}/${coords.length}] ${name}: ${coords[i][1]?.toFixed(4) || '—'}, ${coords[i][0]?.toFixed(4) || '—'} (lat,lng)`);
-    mapTaskData.push({
-      type: 'poi',
-      lnglat: coords[i],
-      sort: `第${i + 1}站`,
-      text: name,
-      remark: 'GPX/KML 实测坐标'
-    });
   }
 
-  // 仅连接原始 POI 节点，避免无限循环
-  const poiCount = mapTaskData.length;
-  for (let i = 0; i < poiCount - 1; i++) {
-    const start = mapTaskData[i];
-    const end = mapTaskData[i + 1];
-    const segRouteType = routeTypes[i] || defaultRouteType;
+  if (coords.length > 2) {
+    // GPX 轨迹模式：起点+终点 POI，polyline 轨迹线，单条路线规划
+    const firstName = names[0] || '起点';
+    const lastName = names[names.length - 1] || '终点';
+
+    // 起点 POI
+    mapTaskData.push({
+      type: 'poi',
+      lnglat: coords[0],
+      sort: '起点',
+      text: firstName,
+      remark: 'GPX/KML 实测起点'
+    });
+
+    // 终点 POI
+    mapTaskData.push({
+      type: 'poi',
+      lnglat: coords[coords.length - 1],
+      sort: '终点',
+      text: lastName,
+      remark: 'GPX/KML 实测终点'
+    });
+
+    // Polyline 轨迹线（全部坐标点，GPX 实际轨迹）
+    mapTaskData.push({
+      type: 'polyline',
+      path: coords,
+      strokeColor: '#52c41a',
+      strokeWeight: 4,
+      strokeOpacity: 0.6,
+      remark: `GPX 轨迹 (${coords.length}个点)`
+    });
+
+    // 路线规划：起点 → 终点
+    const segRouteType = routeTypes[0] || defaultRouteType;
     mapTaskData.push({
       type: 'route',
       routeType: segRouteType,
-      start: start.lnglat,
-      end: end.lnglat,
-      remark: `第${i + 1}段: ${start.text} → ${end.text} (${segRouteType})`
+      start: coords[0],
+      end: coords[coords.length - 1],
+      remark: `轨迹路线: ${firstName} → ${lastName} (${segRouteType})`
     });
+  } else {
+    // 简单双点模式：两个 POI + 一条路线
+    for (let i = 0; i < coords.length; i++) {
+      const name = names[i] || `节点${i + 1}`;
+      mapTaskData.push({
+        type: 'poi',
+        lnglat: coords[i],
+        sort: `第${i + 1}站`,
+        text: name,
+        remark: 'GPX/KML 实测坐标'
+      });
+    }
+    const poiCount = mapTaskData.length;
+    for (let i = 0; i < poiCount - 1; i++) {
+      const start = mapTaskData[i];
+      const end = mapTaskData[i + 1];
+      const segRouteType = routeTypes[i] || defaultRouteType;
+      mapTaskData.push({
+        type: 'route',
+        routeType: segRouteType,
+        start: start.lnglat,
+        end: end.lnglat,
+        remark: `第${i + 1}段: ${start.text} → ${end.text} (${segRouteType})`
+      });
+    }
   }
 
   const baseUrl = 'https://a.amap.com/jsapi_demo_show/static/openclaw/travel_plan.html';
@@ -213,7 +262,12 @@ async function main() {
     ? args.stops.split('|')
     : args.stops.split(',');
   const stops = rawStops.map(s => s.trim()).filter(Boolean);
-  const routeType = args.routeType || 'driving';
+  // 解析路线类型：支持逗号分隔的逐段路线类型
+  let routeTypes = [];
+  if (args.routeType) {
+    routeTypes = args.routeType.split(',').map(s => s.trim()).filter(Boolean);
+  }
+  const defaultRouteType = routeTypes[0] || 'driving';
   const region = args.region || '';
 
   if (stops.length < 2) {
@@ -225,7 +279,12 @@ async function main() {
   console.log(`⚠️  隐私提示：行程站点名称将通过网络发送给高德地图（Amap）API 进行地理编码。`);
   console.log(`📍 节点数量: ${stops.length}`);
   if (region) console.log(`📍 定位范围: ${region}`);
-  console.log(`🛣️  路线类型: ${routeType}\n`);
+  if (routeTypes.length > 0) {
+    console.log(`🛣️  路线类型: ${routeTypes.join(', ')}`);
+  } else {
+    console.log(`🛣️  路线类型: ${defaultRouteType} (默认)`);
+  }
+  console.log('');
 
   const mapTaskData = [];
 
@@ -258,12 +317,13 @@ async function main() {
   for (let i = 0; i < poiCount - 1; i++) {
     const start = mapTaskData[i];
     const end = mapTaskData[i + 1];
+    const segRouteType = routeTypes[i] || defaultRouteType;
     mapTaskData.push({
       type: 'route',
-      routeType: routeType,
+      routeType: segRouteType,
       start: start.lnglat,
       end: end.lnglat,
-      remark: `第${i + 1}段: ${start.text} → ${end.text}`
+      remark: `第${i + 1}段: ${start.text} → ${end.text} (${segRouteType})`
     });
   }
 

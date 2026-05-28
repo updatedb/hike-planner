@@ -785,6 +785,8 @@ function cmdSetHikingRoutes(routes, tripId) {
     type: r.type || '混合',
     keyNodes: r.keyNodes || [],
     gpxSource: r.gpxSource || '',
+    gpxFilePath: r.gpxFilePath || '',       // GPX/KML 文件相对路径（gpx/xxx.gpx）
+    trackMapPath: r.trackMapPath || '',     // 轨迹地图 HTML 相对路径（gpx/xxx_轨迹地图.html）
     tips: r.tips || '',
     dayIndex: r.dayIndex || 0,
   }));
@@ -792,6 +794,37 @@ function cmdSetHikingRoutes(routes, tripId) {
   saveState(state, trip.outputDir);
 
   return { tripId: trip.tripId, hikingRoutes: trip.hikingRoutes };
+}
+
+// ── GPX/KML 文件保存 + 轨迹地图生成 ──────────────────
+
+/**
+ * 保存 GPX/KML 文件到行程 gpx 目录，并生成轨迹地图 HTML
+ * @param {object} trip - 行程对象
+ * @param {string} sourcePath - 上传的 GPX/KML 文件路径
+ * @returns {{ gpxPath: string, trackMapPath: string, error: string|null }}
+ */
+function saveGpxFile(trip, sourcePath) {
+  const gpxDir = path.join(trip.outputDir, 'upcoming', trip.tripId, 'gpx');
+  fs.mkdirSync(gpxDir, { recursive: true });
+
+  // 复制 GPX/KML 到 gpx 目录
+  const ext = path.extname(sourcePath);
+  const baseName = path.basename(sourcePath, ext);
+  const destFile = path.join(gpxDir, `${baseName}${ext}`);
+  fs.copyFileSync(sourcePath, destFile);
+
+  // 生成轨迹地图 HTML
+  const htmlFile = path.join(gpxDir, `${baseName}_轨迹地图.html`);
+  const scriptPath = path.join(__dirname, 'generate-track-map.py');
+  try {
+    execSync(`python3 "${scriptPath}" "${destFile}" --output "${htmlFile}" --tile amap`, { timeout: 30000 });
+  } catch (e) {
+    return { gpxPath: `gpx/${baseName}${ext}`, trackMapPath: null, error: `轨迹地图生成失败: ${e.message}` };
+  }
+
+  // 返回 gpx 目录内的相对路径（用于 README 链接）
+  return { gpxPath: `gpx/${baseName}${ext}`, trackMapPath: `gpx/${baseName}_轨迹地图.html`, error: null };
 }
 
 // ── 命令：设置交通 ────────────────────────────────────
@@ -2423,13 +2456,30 @@ function renderTravelAdvice(trip, lines) {
 // ── 地图链接自动生成 ─────────────────────────────
 
 /**
+ * 根据节点类型推导路线类型（高德地图 routeType 参数）
+ * @param {string} nodeType - 节点类型
+ * @returns {string} driving | walking | transfer | straight
+ */
+function getNodeRouteType(nodeType) {
+  switch (nodeType) {
+    case 'hiking': case 'walk': return 'walking';
+    case 'metro': case 'bus': return 'transfer';
+    case 'taxi': case 'selfdrive': case 'car': return 'driving';
+    case 'train': case 'flight': return 'straight';
+    default: return 'driving';
+  }
+}
+
+/**
  * 为指定 day 自动生成高德地图可视化路线链接
  * @param {number} dayIndex - day 索引
  * @param {string[]} stops - 节点名称列表
  * @param {string} [region] - 省市区县范围，用于地理编码消歧义（如 "北京市延庆区"）
+ * @param {Array<{lat:number,lng:number}>} [coords] - GPX/KML 提取的 GPS 坐标
+ * @param {string[]} [routeTypes] - 逐段路线类型数组（长度 = stops.length - 1），默认全为 driving
  * @returns {{ link: string|null, error: string|null }}
  */
-function renderDayMap(dayIndex, stops, region, coords) {
+function renderDayMap(dayIndex, stops, region, coords, routeTypes) {
   const key = process.env.AMAP_WEBSERVICE_KEY;
   if (!key) {
     return { link: null, error: '未设置 AMAP_WEBSERVICE_KEY 环境变量，无法生成地图链接' };
@@ -2442,13 +2492,17 @@ function renderDayMap(dayIndex, stops, region, coords) {
   const scriptPath = path.join(__dirname, 'render-itinerary-map.js');
 
   try {
+    // 构建逐段路线类型参数（逗号分隔）
+    const rtypes = (routeTypes && routeTypes.length > 0) ? routeTypes : stops.slice(0, -1).map(() => 'driving');
+    const routeTypeArg = rtypes.join(',');
+
     // 优先使用 GPX/KML 提取的 GPS 坐标（无需地理编码，精度最高）
     if (coords && coords.length >= 2) {
       const coordsStr = coords.map(c => `${c.lng},${c.lat}`).join('|');
       const namesStr = stops.map(s => s.replace(/,/g, ' ')).join('|');
       const env = { ...process.env, AMAP_WEBSERVICE_KEY: key };
       const result = execSync(
-        `node "${scriptPath}" --coords="${coordsStr}" --names="${namesStr}" --routeType=driving`,
+        `node "${scriptPath}" --coords="${coordsStr}" --names="${namesStr}" --routeType=${routeTypeArg}`,
         { timeout: 30000, encoding: 'utf8', env }
       );
       const match = result.match(/https:\/\/a\.amap\.com\/[^\s\n]+/);
@@ -2460,7 +2514,7 @@ function renderDayMap(dayIndex, stops, region, coords) {
     const regionArg = region ? ` --region="${region.replace(/"/g, '')}"` : '';
     const env = { ...process.env, AMAP_WEBSERVICE_KEY: key };
     const result = execSync(
-      `node "${scriptPath}" --stops="${stopsStr}" --routeType=driving${regionArg}`,
+      `node "${scriptPath}" --stops="${stopsStr}" --routeType=${routeTypeArg}${regionArg}`,
       { timeout: 30000, encoding: 'utf8', env }
     );
     const match = result.match(/https:\/\/a\.amap\.com\/[^\s\n]+/);
@@ -2537,7 +2591,12 @@ function renderPlanReadme(trip) {
         // 尝试从当天的徒步路线中提取 GPS 坐标（GPX/KML 直接解析，精度最高）
         const dayHikeRoute = trip.hikingRoutes.find(r => r.dayIndex === day.dayIndex || r.name === (day.nodes.find(n => n.type === 'hiking') || {}).name);
         const gpsCoords = (dayHikeRoute && dayHikeRoute.waypoints && dayHikeRoute.waypoints.length >= 2) ? dayHikeRoute.waypoints : null;
-        const { link, error } = renderDayMap(day.dayIndex, stopNames, trip.destinationRegion, gpsCoords);
+        // 逐段推导路线类型（根据节点类型自动映射）
+        const segTypes = [];
+        for (let j = 0; j < day.nodes.length - 1; j++) {
+          segTypes.push(getNodeRouteType(day.nodes[j].type));
+        }
+        const { link, error } = renderDayMap(day.dayIndex, stopNames, trip.destinationRegion, gpsCoords, segTypes);
         if (link) {
           day.mapUrl = link;
           if (!trip.mapUrls.includes(link)) trip.mapUrls.push(link);
@@ -2633,6 +2692,9 @@ function renderPlanReadme(trip) {
       if (route.type) lines.push(`| 路线类型 | ${route.type} |`);
       if (route.keyNodes.length > 0) lines.push(`| 关键节点 | ${route.keyNodes.join('→')} |`);
       if (route.gpxSource) lines.push(`| 轨迹来源 | ${route.gpxSource} |`);
+      if (route.trackMapPath) {
+        lines.push(`| 🗺️ 轨迹地图 | [查看](${route.trackMapPath}) |`);
+      }
       if (route.tips) lines.push(`| ⚠️ 提示 | ${route.tips} |`);
       lines.push('');
     }
@@ -2839,6 +2901,9 @@ module.exports = {
   getNodeRouteType,
   getNodeTransportLabel,
   getRouteTypesForDay,
+
+  // GPX/KML 工具
+  saveGpxFile,
 
   // 工具函数
   loadConfig,
