@@ -2,7 +2,7 @@
   "name": "Hike Planner",
   "ownerId": "kn73h0b3vxspe7143ad7dk07xn822pwv",
   "slug": "hike-planner",
-  "version": "1.4.4",
+  "version": "1.4.5",
   "description": "v1.4.4: 简化计划文件名 - 直接从文档一级标题提取。",
   "keywords": [
     "hiking",
