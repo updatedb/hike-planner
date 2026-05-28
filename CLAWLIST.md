@@ -112,3 +112,5 @@
   - [x] ClawHub 发布 v2.0.0 ✅ (k97fbcehdw8tnjz10pey2430p987k8vb)
 - [x] v2.1.0: 路线类型自动推导 + GPX轨迹polyline + GPX文件保存 + 轨迹地图链接 + 移除HIKE_PLANNER_OUTPUT_DIR ✅
   - [x] ClawHub 发布 v2.1.0 ✅ (k97bkdzhycvyja9t4kyv875hdh87k5qv)
+- [x] v2.2.0: 徒步路线分类(穿越/环线/往返) + 每日安排徒步合并展示 ✅
+  - [x] ClawHub 发布 v2.2.0 ✅ (k9786ykgqtfp5ys9362dfny73187jas5)

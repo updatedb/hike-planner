@@ -2573,13 +2573,64 @@ function renderPlanReadme(trip) {
     } else {
       lines.push('| 时间 | 区间 | 节点详情 | 费用 | 备注 |');
       lines.push('|------|------|---------|------|------|');
+      // 合并连续徒步节点为紧凑行
+      const mergedNodes = [];
+      let hikingGroup = null;
+
       for (const node of day.nodes) {
-        const costStr = node.cost != null ? `¥${node.cost}` : '';
-        const transportLabel = getNodeTransportLabel(node);
-        const isHiking = node.type === 'hiking';
-        const routeSummary = isHiking ? ' ' + getHikeRouteSummary(node.name, trip.hikingRoutes) : '';
-        const name = isHiking ? `${node.name}，${routeSummary || node.detail}` : node.name;
-        lines.push(`| ${node.time} | ${transportLabel} | ${name} | ${costStr} | ${node.remark} |`);
+        if (node.type === 'hiking') {
+          if (!hikingGroup) {
+            hikingGroup = {
+              type: 'hiking',
+              time: node.time,
+              endTime: node.time,
+              nodes: [node],
+              cost: node.cost || 0,
+            };
+          } else {
+            hikingGroup.endTime = node.time;
+            hikingGroup.nodes.push(node);
+            hikingGroup.cost += node.cost || 0;
+          }
+        } else {
+          if (hikingGroup) {
+            mergedNodes.push(hikingGroup);
+            hikingGroup = null;
+          }
+          mergedNodes.push(node);
+        }
+      }
+      if (hikingGroup) mergedNodes.push(hikingGroup);
+
+      for (const node of mergedNodes) {
+        if (node.type === 'hiking' && node.nodes) {
+          // 徒步合并行
+          const names = node.nodes.map(n => n.name);
+          const keyNodesStr = names.length > 2
+            ? `${names[0]}→...→${names[names.length - 1]}`
+            : names.join('→');
+          const timeStr = node.nodes.length > 1
+            ? `${node.time}-${node.endTime}`
+            : node.time;
+          // 尝试从 hikingRoutes 获取路线摘要
+          const route = trip.hikingRoutes.find(r =>
+            r.name === node.nodes[0].name ||
+            node.nodes.some(n => n.name === r.name)
+          );
+          let detail = keyNodesStr;
+          if (route) {
+            const parts = [];
+            if (route.distance) parts.push(`${route.distance}${route.distanceUnit || 'km'}`);
+            if (route.ascent) parts.push(`爬升${route.ascent}m`);
+            if (route.estimatedTime) parts.push(`预计${route.estimatedTime}`);
+            detail = `${keyNodesStr}（${parts.join('，')}）`;
+          }
+          lines.push(`| ${timeStr} | 🥾 徒步 | ${detail} | ${node.cost ? `¥${node.cost}` : ''} | |`);
+        } else {
+          const costStr = node.cost != null ? `¥${node.cost}` : '';
+          const transportLabel = getNodeTransportLabel(node);
+          lines.push(`| ${node.time} | ${transportLabel} | ${node.name} | ${costStr} | ${node.remark || ''} |`);
+        }
       }
     }
     lines.push('');
