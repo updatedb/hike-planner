@@ -783,6 +783,7 @@ function cmdSetHikingRoutes(routes, tripId) {
     maxAltitude: r.maxAltitude || null,
     estimatedTime: r.estimatedTime || '',
     type: r.type || '混合',
+    routeClass: r.routeClass || '',     // 路线分类: 穿越(起终点不同)/环线(起点=终点,路径不重复)/往返(起点=终点,原路返回)
     keyNodes: r.keyNodes || [],
     gpxSource: r.gpxSource || '',
     gpxFilePath: r.gpxFilePath || '',       // GPX/KML 文件相对路径（gpx/xxx.gpx）
@@ -2690,6 +2691,7 @@ function renderPlanReadme(trip) {
       if (route.maxAltitude) lines.push(`| 最高海拔 | ${route.maxAltitude}m |`);
       if (route.estimatedTime) lines.push(`| 预计用时 | ${route.estimatedTime} |`);
       if (route.type) lines.push(`| 路线类型 | ${route.type} |`);
+      if (route.routeClass) lines.push(`| 路线分类 | ${route.routeClass} |`);
       if (route.keyNodes.length > 0) lines.push(`| 关键节点 | ${route.keyNodes.join('→')} |`);
       if (route.gpxSource) lines.push(`| 轨迹来源 | ${route.gpxSource} |`);
       if (route.trackMapPath) {
