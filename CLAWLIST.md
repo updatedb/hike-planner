@@ -104,3 +104,5 @@
   - [x] ClawHub 发布 v1.5.0 ✅ (k975teyjjt0t803yqmzmc6ma9187k0p7)
   - [x] v1.5.1: 包目录 skill → hike-planner ✅
   - [x] ClawHub 发布 v1.5.1 ✅ (k976xybtmmxnd3ehbtk13zfjyn87j7v8)
+- [x] v1.5.2: 新增 KML 轨迹解析器 kml-parser.py ✅
+  - [x] ClawHub 发布 v1.5.2 ✅ (k9749ampktyr8f0xjqr7wcefbs87kkq7)

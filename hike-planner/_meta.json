@@ -2,8 +2,8 @@
   "name": "Hike Planner",
   "ownerId": "kn73h0b3vxspe7143ad7dk07xn822pwv",
   "slug": "hike-planner",
-  "version": "1.5.1",
-  "description": "v1.5.1: 包目录 skill → hike-planner",
+  "version": "1.5.2",
+  "description": "v1.5.2: 新增 KML 轨迹解析器 kml-parser.py",
   "keywords": [
     "hiking",
     "trip",
