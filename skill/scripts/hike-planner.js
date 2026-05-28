@@ -332,6 +332,7 @@ function createTripPlan(destination, options) {
     tripId: '',
     status: STATUS.COLLECTING,
     destination: destination || '',
+    destinationRegion: '',  // 目的地省市区县，用于地理编码消歧义
     dates: { start: '', end: '' },
     origin: '',
     returnTo: '',
@@ -508,6 +509,7 @@ function cmdInit(startDate, destination, activity, options) {
   // 即便三个必填项都有，也补问一些可选信息
   const optionalQuestions = [
     { id: 'endDate', label: '返回日期（单日可不填）', required: false },
+    { id: 'destinationRegion', label: '目的地在哪个省/市/县？（如 北京市延庆区，用于精确地图定位）', required: false },
     { id: 'origin', label: '从哪个城市出发？', required: false },
     { id: 'returnTo', label: '回到哪个城市？（同出发可不填）', required: false },
     { id: 'participants', label: '几个人？', required: false, default: '1' },
@@ -598,6 +600,7 @@ function _cmdInitLegacy(destination, options) {
         { id: 'startDate', label: '出发日期（如 2026-05-13）', required: true },
         { id: 'endDate', label: '返回日期（单程可不填）', required: false },
         { id: 'origin', label: '从哪个城市出发？', required: true },
+        { id: 'destinationRegion', label: '目的地在哪个省/市/县？（如 北京市延庆区，用于精确地图定位）', required: false },
         { id: 'returnTo', label: '回到哪个城市？（同出发可不填）', required: false },
         { id: 'participants', label: '几个人？', required: false, default: '1' },
         { id: 'transport', label: '交通偏好（火车/飞机/自驾）', required: false },
@@ -634,6 +637,7 @@ function cmdSetRequirements(requirements) {
   // 更新出发/返回地
   if (r.origin) trip.origin = r.origin;
   if (r.returnTo) trip.returnTo = r.returnTo;
+  if (r.destinationRegion) trip.destinationRegion = r.destinationRegion;
   if (!trip.returnTo && trip.origin) trip.returnTo = trip.origin;
 
   // 更新人数和偏好
@@ -2379,9 +2383,10 @@ function renderTravelAdvice(trip, lines) {
  * 为指定 day 自动生成高德地图可视化路线链接
  * @param {number} dayIndex - day 索引
  * @param {string[]} stops - 节点名称列表
+ * @param {string} [region] - 省市区县范围，用于地理编码消歧义（如 "北京市延庆区"）
  * @returns {{ link: string|null, error: string|null }}
  */
-function renderDayMap(dayIndex, stops) {
+function renderDayMap(dayIndex, stops, region) {
   const key = process.env.AMAP_WEBSERVICE_KEY;
   if (!key) {
     return { link: null, error: '未设置 AMAP_WEBSERVICE_KEY 环境变量，无法生成地图链接' };
@@ -2395,9 +2400,10 @@ function renderDayMap(dayIndex, stops) {
   const scriptPath = path.join(__dirname, 'render-itinerary-map.js');
 
   try {
+    const regionArg = region ? ` --region="${region.replace(/"/g, '')}"` : '';
     const env = { ...process.env, AMAP_WEBSERVICE_KEY: key };
     const result = execSync(
-      `node "${scriptPath}" --stops="${stopsStr}" --routeType=driving`,
+      `node "${scriptPath}" --stops="${stopsStr}" --routeType=driving${regionArg}`,
       { timeout: 30000, encoding: 'utf8', env }
     );
     const match = result.match(/https:\/\/a\.amap\.com\/[^\s\n]+/);
@@ -2469,7 +2475,7 @@ function renderPlanReadme(trip) {
       // 自动生成地图链接
       const stopNames = day.nodes.map(n => n.name).filter(Boolean);
       if (stopNames.length >= 2) {
-        const { link, error } = renderDayMap(day.dayIndex, stopNames);
+        const { link, error } = renderDayMap(day.dayIndex, stopNames, trip.destinationRegion);
         if (link) {
           day.mapUrl = link;
           if (!trip.mapUrls.includes(link)) trip.mapUrls.push(link);

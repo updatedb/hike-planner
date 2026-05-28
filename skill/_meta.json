@@ -2,8 +2,8 @@
   "name": "Hike Planner",
   "ownerId": "kn73h0b3vxspe7143ad7dk07xn822pwv",
   "slug": "hike-planner",
-  "version": "1.4.0",
-  "description": "v1.4.0: 待办事项数字编号 + todo N done 快速完成命令。支持 GPX/KML 双格式轨迹。",
+  "version": "1.4.1",
+  "description": "v1.4.1: 地理编码消歧义 - 节点定位时强制带省市区县前缀，防止重名地点定位错误。一站式徒步出行规划。",
   "keywords": ["hiking", "trip", "travel", "planner", "route", "transportation", "map"],
   "permissions": {
     "filesystem": {

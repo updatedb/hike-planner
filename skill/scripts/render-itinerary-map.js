@@ -5,7 +5,7 @@
  * 使用 curl（无 npm 依赖）
  *
  * 用法:
- * node scripts/render-itinerary-map.js --stops="成都|广元|昭化古城|明月峡|剑阁县" [--city=广元] [--routeType=driving]
+ * node scripts/render-itinerary-map.js --stops="成都|广元|昭化古城|明月峡|剑阁县" [--city=广元] [--region=四川省广元市] [--routeType=driving]
  */
 
 const { execSync } = require('child_process');
@@ -22,14 +22,27 @@ function getAmapKey() {
 }
 
 // 地理编码：调用高德 API
-async function geocode(address, key) {
-  const url = `https://restapi.amap.com/v3/geocode/geo?address=${encodeURIComponent(address)}&output=json&key=${key}`;
+// region 为省市区县前缀，用于消除重名歧义（如 "北京市延庆区" 确保 "姜庄子村" 定位到正确的那个）
+async function geocode(address, key, region) {
+  // 优先用 region+address 精确定位，排除重名干扰
+  const fullAddress = region ? `${region}${address}` : address;
+  const url = `https://restapi.amap.com/v3/geocode/geo?address=${encodeURIComponent(fullAddress)}&output=json&key=${key}&city=${encodeURIComponent(region || '')}`;
   try {
     const res = execSync(`curl -s "${url}"`, { timeout: 10000 });
     const data = JSON.parse(res.toString());
     if (data.status === '1' && data.geocodes && data.geocodes.length > 0) {
       const loc = data.geocodes[0].location; // "经度,纬度"
       return loc.split(',').map(Number); // [lng, lat]
+    }
+    // 带 region 前缀匹配失败时，尝试不带前缀
+    if (region) {
+      const fallbackUrl = `https://restapi.amap.com/v3/geocode/geo?address=${encodeURIComponent(address)}&output=json&key=${key}`;
+      const fallbackRes = execSync(`curl -s "${fallbackUrl}"`, { timeout: 10000 });
+      const fallbackData = JSON.parse(fallbackRes.toString());
+      if (fallbackData.status === '1' && fallbackData.geocodes && fallbackData.geocodes.length > 0) {
+        const loc = fallbackData.geocodes[0].location;
+        return loc.split(',').map(Number);
+      }
     }
   } catch (e) {
     // ignore
@@ -60,6 +73,7 @@ async function main() {
     console.log('\n参数:');
     console.log('  --stops     行程节点列表（必填，中文名称，用逗号或竖线分隔）');
     console.log('  --city       城市范围，用于提高地理编码精度（可选）');
+    console.log('  --region     省市区县前缀（如 北京市延庆区），用于消除重名歧义（推荐）');
     console.log('  --routeType  路线类型: driving/walking/riding/transfer（默认: driving）');
     process.exit(1);
   }
@@ -77,6 +91,7 @@ async function main() {
     : args.stops.split(',');
   const stops = rawStops.map(s => s.trim()).filter(Boolean);
   const routeType = args.routeType || 'driving';
+  const region = args.region || '';
 
   if (stops.length < 2) {
     console.error('❌ 节点数量不足，至少需要 2 个节点');
@@ -86,6 +101,7 @@ async function main() {
   console.log(`\n🗺️  正在渲染行程地图...`);
   console.log(`⚠️  隐私提示：行程站点名称将通过网络发送给高德地图（Amap）API 进行地理编码。`);
   console.log(`📍 节点数量: ${stops.length}`);
+  if (region) console.log(`📍 定位范围: ${region}`);
   console.log(`🛣️  路线类型: ${routeType}\n`);
 
   const mapTaskData = [];
@@ -94,7 +110,7 @@ async function main() {
   for (let i = 0; i < stops.length; i++) {
     const name = stops[i];
     process.stdout.write(`  [${i + 1}/${stops.length}] 地理编码: ${name} ... `);
-    const coord = await geocode(name, key);
+    const coord = await geocode(name, key, region);
     if (coord) {
       mapTaskData.push({
         type: 'poi',
