@@ -47,6 +47,7 @@ permissions:
 | `hike-add [dayN] [路线A-B]` | 添加 A-B 行程段到 DayN，后续行程自动推后 |
 | `hike-del [dayN]` | ⚠️ 删除 DayN 整个日程，立即写入磁盘且不可撤销。后续日程自动移前。 |
 | `hike-reorder [dayN] after\|before\|to [dayM]` | ⚠️ 重排日程顺序，立即写入磁盘。将 DayN 移到 DayM 之后/之前，或让 DayN 成为新的 DayM。 |
+| `todo [N] done` | ✅ 通过编号快速完成待办。示例：`todo 1 done`、`TODO 3 done`。 |
 
 ## 示例
 

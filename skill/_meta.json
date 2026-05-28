@@ -2,8 +2,8 @@
   "name": "Hike Planner",
   "ownerId": "kn73h0b3vxspe7143ad7dk07xn822pwv",
   "slug": "hike-planner",
-  "version": "1.3.9",
-  "description": "v1.3.9: 全面支持 GPX/KML 双格式轨迹导入。一站式徒步出行规划。",
+  "version": "1.4.0",
+  "description": "v1.4.0: 待办事项数字编号 + todo N done 快速完成命令。支持 GPX/KML 双格式轨迹。",
   "keywords": ["hiking", "trip", "travel", "planner", "route", "transportation", "map"],
   "permissions": {
     "filesystem": {

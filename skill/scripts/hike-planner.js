@@ -817,11 +817,46 @@ function cmdSetTodos(todos, tripId) {
   const trip = getTrip(state, tripId);
   if (!trip) return { error: '没有活动的行程' };
 
-  trip.todos = todos;
+  // 兼容旧格式（纯字符串）与新格式（{text, done} 对象）
+  trip.todos = todos.map(t => typeof t === 'string' ? { text: t, done: false } : t);
   trip.updatedAt = new Date().toISOString();
   saveState(state, trip.outputDir);
 
   return { tripId: trip.tripId, todos: trip.todos };
+}
+
+// ── 命令：标记待办完成 ──────────────────────────────
+
+/**
+ * 通过编号快速标记待办为完成。
+ * 用户输入 "TODO 1 done" / "todo 2 done" 即可完成对应编号的待办。
+ *
+ * @param {number} todoNumber - 待办编号（1-based）
+ * @param {string} [tripId] - 行程 ID
+ * @returns {object} { tripId, todo, message }
+ */
+function cmdTodoDone(todoNumber, tripId) {
+  const { state } = loadStateWithFallback();
+  const trip = getTrip(state, tripId);
+  if (!trip) return { error: '没有活动的行程' };
+
+  const index = todoNumber - 1;
+  if (index < 0 || index >= trip.todos.length) {
+    return { error: `待办编号 ${todoNumber} 无效（共 ${trip.todos.length} 项）` };
+  }
+
+  const todo = trip.todos[index];
+  if (typeof todo === 'string') {
+    // 旧格式自动迁移
+    trip.todos[index] = { text: todo, done: true };
+  } else {
+    todo.done = true;
+  }
+  trip.updatedAt = new Date().toISOString();
+  saveState(state, trip.outputDir);
+
+  const text = typeof todo === 'string' ? todo : todo.text;
+  return { tripId: trip.tripId, todoIndex: index + 1, text, message: `✅ TODO ${index + 1} 已完成: ${text}` };
 }
 
 // ── 命令：设置地图链接 ────────────────────────────────
@@ -2183,11 +2218,11 @@ function getDefaultEquipment(trip) {
  */
 function getDefaultTodos(trip) {
   const todos = [
-    '订火车票/机票（确认出发日期和班次）',
-    '订酒店（确认入住日期和房型）',
-    '检查装备清单并补齐缺失物品',
-    '购买户外保险（推荐：慧择/平安户外险）',
-    '下载离线地图和GPX/KML轨迹（两步路/六只脚）',
+    { text: '订火车票/机票（确认出发日期和班次）', done: false },
+    { text: '订酒店（确认入住日期和房型）', done: false },
+    { text: '检查装备清单并补齐缺失物品', done: false },
+    { text: '购买户外保险（推荐：慧择/平安户外险）', done: false },
+    { text: '下载离线地图和GPX/KML轨迹（两步路/六只脚）', done: false },
   ];
 
   // 如果有徒步路线，加上轨迹相关
@@ -2558,11 +2593,16 @@ function renderPlanReadme(trip) {
   lines.push('## 待办事项');
   lines.push('');
   if (trip.todos.length > 0) {
-    for (const todo of trip.todos) {
-      lines.push(`- [ ] ${todo}`);
+    for (let i = 0; i < trip.todos.length; i++) {
+      const todo = trip.todos[i];
+      const text = typeof todo === 'string' ? todo : todo.text;
+      const done = typeof todo === 'string' ? false : todo.done;
+      const check = done ? 'x' : ' ';
+      const suffix = done ? ' ✅' : '';
+      lines.push(`${i + 1}. [${check}] ${text}${suffix}`);
     }
   } else {
-    lines.push('- [ ] 待补充');
+    lines.push('1. [ ] 待补充');
   }
   lines.push('');
 
@@ -2664,8 +2704,8 @@ function validatePlanReadme(content, trip) {
 
   // ── 待办事项检查 ──
   if (/^## 待办事项/m.test(content)) {
-    if (!/\- \[.\]/m.test(content)) {
-      warnings.push('待办事项 - 无清单项');
+    if (!/\d+\. \[.\]/m.test(content)) {
+      warnings.push('待办事项 - 无编号清单项');
     }
   }
 
@@ -2707,6 +2747,7 @@ module.exports = {
   cmdSetCulture,
   cmdSetEquipment,
   cmdSetTodos,
+  cmdTodoDone,
   cmdSetMapUrl,
   cmdConfirm,
   cmdActivate,
