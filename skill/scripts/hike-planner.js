@@ -399,7 +399,7 @@ function cmdHike(destination, activity) {
     // 徒步路线搜索任务
     routeSearch: {
       tasks: [
-        { source: '两步路', query: `${dest} 徒步 轨迹`, purpose: '经典徒步路线 + GPX 轨迹数据' },
+        { source: '两步路', query: `${dest} 徒步 轨迹`, purpose: '经典徒步路线 + GPX/KML 轨迹数据' },
         { source: 'xiaohongshu', query: `${dest} 徒步路线 攻略`, purpose: '真实用户经验和实拍照片' },
         { source: 'bilibili', query: `${dest} 徒步 vlog`, purpose: '视频实拍路况和体验' },
       ],
@@ -2187,7 +2187,7 @@ function getDefaultTodos(trip) {
     '订酒店（确认入住日期和房型）',
     '检查装备清单并补齐缺失物品',
     '购买户外保险（推荐：慧择/平安户外险）',
-    '下载离线地图和GPX轨迹（两步路/六只脚）',
+    '下载离线地图和GPX/KML轨迹（两步路/六只脚）',
   ];
 
   // 如果有徒步路线，加上轨迹相关
@@ -2529,7 +2529,7 @@ function renderPlanReadme(trip) {
       if (route.estimatedTime) lines.push(`| 预计用时 | ${route.estimatedTime} |`);
       if (route.type) lines.push(`| 路线类型 | ${route.type} |`);
       if (route.keyNodes.length > 0) lines.push(`| 关键节点 | ${route.keyNodes.join('→')} |`);
-      if (route.gpxSource) lines.push(`| GPX来源 | ${route.gpxSource} |`);
+      if (route.gpxSource) lines.push(`| 轨迹来源 | ${route.gpxSource} |`);
       if (route.tips) lines.push(`| ⚠️ 提示 | ${route.tips} |`);
       lines.push('');
     }
