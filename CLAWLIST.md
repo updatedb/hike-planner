@@ -110,3 +110,5 @@
   - [x] ClawHub 发布 v1.5.3 ✅ (k97bcqwgk64ej8zwpmgn398d2n87jvbf)
 - [x] v2.0.0: 轨迹地图 HTML 生成器 + 高德 GPS 坐标渲染 + 自动地图生成 ✅
   - [x] ClawHub 发布 v2.0.0 ✅ (k97fbcehdw8tnjz10pey2430p987k8vb)
+- [x] v2.1.0: 路线类型自动推导 + GPX轨迹polyline + GPX文件保存 + 轨迹地图链接 + 移除HIKE_PLANNER_OUTPUT_DIR ✅
+  - [x] ClawHub 发布 v2.1.0 ✅ (k97bkdzhycvyja9t4kyv875hdh87k5qv)
