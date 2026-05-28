@@ -106,3 +106,5 @@
   - [x] ClawHub 发布 v1.5.1 ✅ (k976xybtmmxnd3ehbtk13zfjyn87j7v8)
 - [x] v1.5.2: 新增 KML 轨迹解析器 kml-parser.py ✅
   - [x] ClawHub 发布 v1.5.2 ✅ (k9749ampktyr8f0xjqr7wcefbs87kkq7)
+- [x] v1.5.3: SOP 海外费用换算 + 多日行程按日扩展详情 ✅
+  - [x] ClawHub 发布 v1.5.3 ✅ (k97bcqwgk64ej8zwpmgn398d2n87jvbf)
