@@ -2,25 +2,50 @@
   "name": "Hike Planner",
   "ownerId": "kn73h0b3vxspe7143ad7dk07xn822pwv",
   "slug": "hike-planner",
-  "version": "1.4.1",
-  "description": "v1.4.1: 地理编码消歧义 - 节点定位时强制带省市区县前缀，防止重名地点定位错误。一站式徒步出行规划。",
-  "keywords": ["hiking", "trip", "travel", "planner", "route", "transportation", "map"],
+  "version": "1.4.2",
+  "description": "v1.4.2: GPS直连模式 - GPX/KML坐标直接渲染地图，跳过地理编码，精度最高。一站式徒步出行规划。",
+  "keywords": [
+    "hiking",
+    "trip",
+    "travel",
+    "planner",
+    "route",
+    "transportation",
+    "map"
+  ],
   "permissions": {
     "filesystem": {
       "scope": "configurable_output_dir",
-      "operations": ["read", "write"],
+      "operations": [
+        "read",
+        "write"
+      ],
       "description": "在用户指定的 outputDir 下读写行程状态文件和行程计划 README.md"
     },
     "network": {
-      "domains": ["restapi.amap.com", "wikipedia.org", "2bulu.com", "xiaohongshu.com", "bilibili.com", "youtube.com"],
+      "domains": [
+        "restapi.amap.com",
+        "wikipedia.org",
+        "2bulu.com",
+        "xiaohongshu.com",
+        "bilibili.com",
+        "youtube.com"
+      ],
       "description": "查询高德地图 API（地理编码/路线规划）、Wikipedia、两步路、小红书、B站/YouTube"
     },
     "environment": {
-      "variables": ["AMAP_WEBSERVICE_KEY", "HIKE_PLANNER_OUTPUT_DIR"],
+      "variables": [
+        "AMAP_WEBSERVICE_KEY",
+        "HIKE_PLANNER_OUTPUT_DIR"
+      ],
       "description": "读取高德地图 API Key 和输出目录配置"
     },
     "execution": {
-      "commands": ["curl", "python3", "node"],
+      "commands": [
+        "curl",
+        "python3",
+        "node"
+      ],
       "description": "执行地理编码脚本和路线渲染"
     }
   }

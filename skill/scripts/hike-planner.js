@@ -733,6 +733,8 @@ function cmdSetHikingRoutes(routes, tripId) {
 
   trip.hikingRoutes = routes.map(r => ({
     name: r.name || '未命名路线',
+    // 从 GPX/KML 提取的 GPS 坐标（最高精度数据源，用于地图渲染）
+    waypoints: r.waypoints || [],  // [{name: '起点', lng: 115.xxx, lat: 40.xxx}, ...]
     distance: r.distance || null,
     distanceUnit: r.distanceUnit || 'km',
     ascent: r.ascent || null,
@@ -2386,7 +2388,7 @@ function renderTravelAdvice(trip, lines) {
  * @param {string} [region] - 省市区县范围，用于地理编码消歧义（如 "北京市延庆区"）
  * @returns {{ link: string|null, error: string|null }}
  */
-function renderDayMap(dayIndex, stops, region) {
+function renderDayMap(dayIndex, stops, region, coords) {
   const key = process.env.AMAP_WEBSERVICE_KEY;
   if (!key) {
     return { link: null, error: '未设置 AMAP_WEBSERVICE_KEY 环境变量，无法生成地图链接' };
@@ -2396,10 +2398,24 @@ function renderDayMap(dayIndex, stops, region) {
     return { link: null, error: '节点数量不足（至少需要2个节点）' };
   }
 
-  const stopsStr = stops.map(s => s.replace(/,/g, ' ')).join(',');
   const scriptPath = path.join(__dirname, 'render-itinerary-map.js');
 
   try {
+    // 优先使用 GPX/KML 提取的 GPS 坐标（无需地理编码，精度最高）
+    if (coords && coords.length >= 2) {
+      const coordsStr = coords.map(c => `${c.lng},${c.lat}`).join('|');
+      const namesStr = stops.map(s => s.replace(/,/g, ' ')).join('|');
+      const env = { ...process.env, AMAP_WEBSERVICE_KEY: key };
+      const result = execSync(
+        `node "${scriptPath}" --coords="${coordsStr}" --names="${namesStr}" --routeType=driving`,
+        { timeout: 30000, encoding: 'utf8', env }
+      );
+      const match = result.match(/https:\/\/a\.amap\.com\/[^\s\n]+/);
+      if (match) return { link: match[0], error: null };
+    }
+
+    // 兜底：通过地名地理编码（带省市区县前缀消歧义）
+    const stopsStr = stops.map(s => s.replace(/,/g, ' ')).join(',');
     const regionArg = region ? ` --region="${region.replace(/"/g, '')}"` : '';
     const env = { ...process.env, AMAP_WEBSERVICE_KEY: key };
     const result = execSync(
@@ -2415,7 +2431,6 @@ function renderDayMap(dayIndex, stops, region) {
     return { link: null, error: `地图链接生成失败: ${e.message}` };
   }
 }
-
 // ── Markdown 渲染器 ────────────────────────────────────
 
 function renderPlanReadme(trip) {
@@ -2475,7 +2490,10 @@ function renderPlanReadme(trip) {
       // 自动生成地图链接
       const stopNames = day.nodes.map(n => n.name).filter(Boolean);
       if (stopNames.length >= 2) {
-        const { link, error } = renderDayMap(day.dayIndex, stopNames, trip.destinationRegion);
+        // 尝试从当天的徒步路线中提取 GPS 坐标（GPX/KML 直接解析，精度最高）
+        const dayHikeRoute = trip.hikingRoutes.find(r => r.dayIndex === day.dayIndex || r.name === (day.nodes.find(n => n.type === 'hiking') || {}).name);
+        const gpsCoords = (dayHikeRoute && dayHikeRoute.waypoints && dayHikeRoute.waypoints.length >= 2) ? dayHikeRoute.waypoints : null;
+        const { link, error } = renderDayMap(day.dayIndex, stopNames, trip.destinationRegion, gpsCoords);
         if (link) {
           day.mapUrl = link;
           if (!trip.mapUrls.includes(link)) trip.mapUrls.push(link);
