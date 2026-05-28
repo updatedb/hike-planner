@@ -101,4 +101,6 @@
 - [x] v1.3.7: 徒步路线详情提升为顶级章节 + 地图链接自动生成（AMAP API Key） ✅
 - [x] v1.4.4: 简化文件名规则 - 直接从文档一级标题提取 ✅
 - [x] v1.5.0: 统一命名规则 - 目录名 slug-YYYY-MM + 文件名从 trip.title 提取 + H1 同步 ✅
-  - [x] ClawHub 发布 ✅ (k975teyjjt0t803yqmzmc6ma9187k0p7)
+  - [x] ClawHub 发布 v1.5.0 ✅ (k975teyjjt0t803yqmzmc6ma9187k0p7)
+  - [x] v1.5.1: 包目录 skill → hike-planner ✅
+  - [x] ClawHub 发布 v1.5.1 ✅ (k976xybtmmxnd3ehbtk13zfjyn87j7v8)
