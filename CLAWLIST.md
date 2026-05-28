@@ -108,3 +108,5 @@
   - [x] ClawHub 发布 v1.5.2 ✅ (k9749ampktyr8f0xjqr7wcefbs87kkq7)
 - [x] v1.5.3: SOP 海外费用换算 + 多日行程按日扩展详情 ✅
   - [x] ClawHub 发布 v1.5.3 ✅ (k97bcqwgk64ej8zwpmgn398d2n87jvbf)
+- [x] v2.0.0: 轨迹地图 HTML 生成器 + 高德 GPS 坐标渲染 + 自动地图生成 ✅
+  - [x] ClawHub 发布 v2.0.0 ✅ (k97fbcehdw8tnjz10pey2430p987k8vb)

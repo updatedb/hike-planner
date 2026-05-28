@@ -2,8 +2,8 @@
   "name": "Hike Planner",
   "ownerId": "kn73h0b3vxspe7143ad7dk07xn822pwv",
   "slug": "hike-planner",
-  "version": "1.5.3",
-  "description": "v1.5.3: SOP 新增海外费用换算 + 多日行程按日扩展行程详情",
+  "version": "2.0.0",
+  "description": "v2.0.0: 轨迹地图 HTML 生成器 + 高德 GPS 坐标渲染 + 自动地图生成",
   "keywords": [
     "hiking",
     "trip",

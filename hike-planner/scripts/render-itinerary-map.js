@@ -66,35 +66,64 @@ function parseArgs() {
 
 /**
  * 使用直接 GPS 坐标渲染地图（无需地理编码，精度最高）
+ * --coords 接受 lat,lng 格式（GPX/KML 标准），内部转为 lng,lat 供高德 API 使用
  */
 async function renderWithCoords(args, key) {
+  // 解析坐标：优先用 | 分隔，回退到 , 分隔
   const rawCoords = args.coords.includes('|')
     ? args.coords.split('|')
     : args.coords.split(',');
+
+  // --coords 使用 lat,lng 格式（GPX 标准），内部转为 [lng, lat] 供高德 API
   const coords = rawCoords.map(s => {
     const parts = s.trim().split(',');
-    return [parseFloat(parts[0]), parseFloat(parts[1])];
-  }).filter(c => !isNaN(c[0]) && !isNaN(c[1]));
+    if (parts.length < 2) return null;
+    // parts[0]=lat, parts[1]=lng → 转为 [lng, lat]
+    const lat = parseFloat(parts[0]);
+    const lng = parseFloat(parts[1]);
+    if (isNaN(lat) || isNaN(lng)) return null;
+    // 自动检测：如果第一个值 > 90（不可能是纬度），说明用户传了 lng,lat 格式
+    // 此时直接使用原顺序（兼容旧格式）
+    if (Math.abs(lat) > 90 && Math.abs(lng) <= 90) {
+      return [lat, lng]; // 已经是 lng,lat
+    }
+    return [lng, lat]; // lat,lng → lng,lat
+  }).filter(Boolean);
 
-  const rawNames = (args.names || '').includes('|')
-    ? args.names.split('|')
-    : (args.names || '').split(',');
-  const names = rawNames.map(s => s.trim()).filter(Boolean);
+  // 解析名称（可选）
+  let names = [];
+  if (args.names) {
+    const rawNames = args.names.includes('|')
+      ? args.names.split('|')
+      : args.names.split(',');
+    names = rawNames.map(s => s.trim()).filter(Boolean);
+  }
 
   if (coords.length < 2) {
     console.error('\n❌ 有效坐标不足，无法生成路线图');
     process.exit(1);
   }
 
-  const routeType = args.routeType || 'driving';
+  // 解析路线类型：支持逗号分隔的逐段路线类型
+  let routeTypes = [];
+  if (args.routeType) {
+    routeTypes = args.routeType.split(',').map(s => s.trim()).filter(Boolean);
+  }
+  const defaultRouteType = routeTypes[0] || 'driving';
+
   console.log(`\n🗺️  正在渲染行程地图（GPS 直连模式，无需地理编码）...`);
   console.log(`📍 GPS 坐标点: ${coords.length}`);
-  console.log(`🛣️  路线类型: ${routeType}\n`);
+  if (routeTypes.length > 0) {
+    console.log(`🛣️  路线类型: ${routeTypes.join(', ')}`);
+  } else {
+    console.log(`🛣️  路线类型: ${defaultRouteType} (默认)`);
+  }
+  console.log('');
 
   const mapTaskData = [];
   for (let i = 0; i < coords.length; i++) {
     const name = names[i] || `节点${i + 1}`;
-    console.log(`  [${i + 1}/${coords.length}] ${name}: ${coords[i][0].toFixed(4)}, ${coords[i][1].toFixed(4)}`);
+    console.log(`  [${i + 1}/${coords.length}] ${name}: ${coords[i][1]?.toFixed(4) || '—'}, ${coords[i][0]?.toFixed(4) || '—'} (lat,lng)`);
     mapTaskData.push({
       type: 'poi',
       lnglat: coords[i],
@@ -104,15 +133,18 @@ async function renderWithCoords(args, key) {
     });
   }
 
-  for (let i = 0; i < mapTaskData.length - 1; i++) {
+  // 仅连接原始 POI 节点，避免无限循环
+  const poiCount = mapTaskData.length;
+  for (let i = 0; i < poiCount - 1; i++) {
     const start = mapTaskData[i];
     const end = mapTaskData[i + 1];
+    const segRouteType = routeTypes[i] || defaultRouteType;
     mapTaskData.push({
       type: 'route',
-      routeType: routeType,
+      routeType: segRouteType,
       start: start.lnglat,
       end: end.lnglat,
-      remark: `第${i + 1}段: ${start.text} → ${end.text}`
+      remark: `第${i + 1}段: ${start.text} → ${end.text} (${segRouteType})`
     });
   }
 
@@ -141,11 +173,6 @@ async function main() {
 
   // ── GPS 直连模式（GPX/KML 提取的坐标，最高精度） ──
   if (args.coords) {
-    if (!args.names) {
-      console.error('❌ --coords 需要配合 --names 使用');
-      console.log('用法: node render-itinerary-map.js --coords="115.4,40.2|115.5,40.3" --names="起点|终点"');
-      process.exit(1);
-    }
     const key = getAmapKey();
     if (!key) {
       console.error('❌ 未找到高德 Web Service Key');
@@ -166,8 +193,11 @@ async function main() {
     console.log('  --region     省市区县前缀（如 北京市延庆区），用于消除重名歧义（推荐）');
     console.log('  --routeType  路线类型: driving/walking/riding/transfer（默认: driving）');
     console.log('\nGPS 直连模式参数（GPX/KML）：');
-    console.log('  --coords     GPS坐标列表（lng,lat 格式，用竖线或逗号分隔，无需地理编码）');
-    console.log('  --names      对应的节点名称列表（用竖线或逗号分隔）');
+    console.log('  --coords     GPS坐标列表（lat,lng 格式，用 | 分隔，无需地理编码）');
+    console.log('               示例: --coords="40.566,115.746|40.575,115.755|40.554,115.775"');
+    console.log('               也支持 lng,lat 格式（自动识别第一个值 > 90 时视为 lng,lat）');
+    console.log('  --names      对应的节点名称列表（可选，用 | 或逗号分隔，默认自动编号）');
+    console.log('  --routeType  路线类型（可逗号分隔指定每段类型）: driving/walking/riding/transfer');
     process.exit(1);
   }
 
@@ -223,8 +253,9 @@ async function main() {
     process.exit(1);
   }
 
-  // 添加路线段（相邻节点之间）
-  for (let i = 0; i < mapTaskData.length - 1; i++) {
+  // 添加路线段（相邻节点之间，仅连接原始 POI）
+  const poiCount = mapTaskData.length;
+  for (let i = 0; i < poiCount - 1; i++) {
     const start = mapTaskData[i];
     const end = mapTaskData[i + 1];
     mapTaskData.push({

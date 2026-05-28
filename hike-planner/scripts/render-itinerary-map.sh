@@ -4,8 +4,13 @@
 # 将行程节点渲染为高德地图可视化链接（纯 bash + curl，无需 npm）
 #
 # 用法:
+#   # 地理编码模式（中文地名）
 #   bash scripts/render-itinerary-map.sh "姜庄子村|大海陀村" "" "" "北京市延庆区"
 #   bash scripts/render-itinerary-map.sh "成都|广元|昭化古城" "" "" "四川省成都市,四川省广元市,四川省广元市"
+#
+#   # GPS 直连模式（GPX/KML 坐标）
+#   bash scripts/render-itinerary-map.sh --coords="40.566,115.746|40.575,115.755" --routeType=walking
+#   bash scripts/render-itinerary-map.sh --coords="40.566,115.746|40.575,115.755|40.554,115.775" --names="起点|中点|终点" --routeType="walking,walking"
 #
 # 参数:
 #   $1: stops        行程节点列表（必填，中文名称，逗号或竖线分隔）
@@ -21,6 +26,11 @@
 #                     例如: "北京市延庆区,北京市延庆区,河北省赤城县"
 #                     用于消除重名地点的定位歧义，优先级最高
 #
+# --coords / --names / --routeType (GPS 直连模式，跳过地理编码)
+#   --coords="lat,lng|lat,lng|..."   GPS坐标列表（lat,lng 格式，| 分隔）
+#   --names="name1|name2|..."        节点名称列表（可选，| 分隔）
+#   --routeType="walking,driving"    各段路线类型（逗号分隔，默认 driving）
+#
 
 AMAP_KEY="${AMAP_WEBSERVICE_KEY:-}"
 
@@ -29,22 +39,79 @@ if [ -z "$AMAP_KEY" ]; then
   exit 1
 fi
 
-STOPS_STR="${1:-}"
-CITY="${2:-}"
-ROUTE_TYPES_STR="${3:-}"
-REGIONS_STR="${4:-}"
+# ── 解析命名参数 ──────────────────────────────────
+COORDS_ARG=""
+NAMES_ARG=""
+ROUTE_TYPE_ARG=""
+POSITIONAL=()
+
+for arg in "$@"; do
+  case "$arg" in
+    --coords=*)   COORDS_ARG="${arg#*=}" ;;
+    --coords)     next="$2"; COORDS_ARG="$next"; shift ;;
+    --names=*)    NAMES_ARG="${arg#*=}" ;;
+    --names)      next="$2"; NAMES_ARG="$next"; shift ;;
+    --routeType=*) ROUTE_TYPE_ARG="${arg#*=}" ;;
+    --routeType)  next="$2"; ROUTE_TYPE_ARG="$next"; shift ;;
+    --*)          echo "❌ 未知参数: $arg"; exit 1 ;;
+    *)            POSITIONAL+=("$arg") ;;
+  esac
+  shift 2>/dev/null || true
+done
+
+# ── GPS 直连模式：使用 Node.js 脚本处理 ──────────
+if [ -n "$COORDS_ARG" ]; then
+  SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+  NODE_SCRIPT="$SCRIPT_DIR/render-itinerary-map.js"
+
+  if [ ! -f "$NODE_SCRIPT" ]; then
+    echo "❌ 找不到 render-itinerary-map.js: $NODE_SCRIPT"
+    exit 1
+  fi
+
+  CMD="node \"$NODE_SCRIPT\" --coords=\"$COORDS_ARG\""
+
+  if [ -n "$NAMES_ARG" ]; then
+    CMD="$CMD --names=\"$NAMES_ARG\""
+  fi
+
+  if [ -n "$ROUTE_TYPE_ARG" ]; then
+    CMD="$CMD --routeType=\"$ROUTE_TYPE_ARG\""
+  fi
+
+  echo "🗺️  使用 GPS 直连模式（跳过地理编码）..."
+  eval "$CMD"
+  exit $?
+fi
+
+# ── 地理编码模式（原有逻辑）── 使用位置参数 ────
+STOPS_STR="${POSITIONAL[0]:-}"
+CITY="${POSITIONAL[1]:-}"
+ROUTE_TYPES_STR="${POSITIONAL[2]:-}"
+REGIONS_STR="${POSITIONAL[3]:-}"
 
 if [ -z "$STOPS_STR" ]; then
   echo "❌ 缺少参数: stops（节点列表）"
   echo ""
   echo "用法:"
+  echo "  # 地理编码模式（中文地名）"
   echo "  bash scripts/render-itinerary-map.sh \"姜庄子村|大海陀村\" \"\" \"\" \"北京市延庆区\""
   echo "  bash scripts/render-itinerary-map.sh \"成都|广元|昭化古城\" \"\" \"\" \"四川省成都市,四川省广元市,四川省广元市\""
   echo ""
-  echo "参数1: 行程节点（必填，中文名称，逗号或竖线分隔）"
-  echo "参数2: 城市范围（可选，仅在参数4未提供时兜底）"
-  echo "参数3: 各段路线类型（可选，逗号分隔，默认 driving）"
-  echo "参数4: 各节点省市区县前缀（可选，逗号分隔，用于消除重名定位歧义，推荐）"
+  echo "  # GPS 直连模式（GPX/KML 坐标）"
+  echo "  bash scripts/render-itinerary-map.sh --coords=\"40.566,115.746|40.575,115.755\" --routeType=walking"
+  echo "  bash scripts/render-itinerary-map.sh --coords=\"40.566,115.746|40.575,115.755|40.554,115.775\" --names=\"起点|中点|终点\" --routeType=\"walking,walking\""
+  echo ""
+  echo "位置参数（地理编码模式）:"
+  echo "  参数1: 行程节点（必填，中文名称，逗号或竖线分隔）"
+  echo "  参数2: 城市范围（可选，仅在参数4未提供时兜底）"
+  echo "  参数3: 各段路线类型（可选，逗号分隔，默认 driving）"
+  echo "  参数4: 各节点省市区县前缀（可选，逗号分隔，用于消除重名定位歧义，推荐）"
+  echo ""
+  echo "命名参数（GPS 直连模式）:"
+  echo "  --coords    GPS坐标列表（lat,lng 格式，| 分隔）"
+  echo "  --names     节点名称列表（可选，| 分隔）"
+  echo "  --routeType 各段路线类型（逗号分隔，默认 driving）"
   echo ""
   echo "示例 - 海坨山徒步:"
   echo "  bash scripts/render-itinerary-map.sh \"姜庄子村|小海坨|大海陀村\" \"延庆\" \"walking,walking\" \"北京市延庆区,北京市延庆区,河北省赤城县\""
