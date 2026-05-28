@@ -2,8 +2,8 @@
   "name": "Hike Planner",
   "ownerId": "kn73h0b3vxspe7143ad7dk07xn822pwv",
   "slug": "hike-planner",
-  "version": "1.4.3",
-  "description": "v1.4.3: 计划文件名采用文档标题（如 海坨山·姜庄子村小环线出行计划.md），不再使用 README.md。",
+  "version": "1.4.4",
+  "description": "v1.4.4: 简化计划文件名 - 直接从文档一级标题提取。",
   "keywords": [
     "hiking",
     "trip",
