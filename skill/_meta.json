@@ -2,8 +2,8 @@
   "name": "Hike Planner",
   "ownerId": "kn73h0b3vxspe7143ad7dk07xn822pwv",
   "slug": "hike-planner",
-  "version": "1.4.2",
-  "description": "v1.4.2: GPS直连模式 - GPX/KML坐标直接渲染地图，跳过地理编码，精度最高。一站式徒步出行规划。",
+  "version": "1.4.3",
+  "description": "v1.4.3: 计划文件名采用文档标题（如 海坨山·姜庄子村小环线出行计划.md），不再使用 README.md。",
   "keywords": [
     "hiking",
     "trip",

@@ -2,7 +2,7 @@
  * hike-planner.js — State Machine + Command Handlers
  *
  * 6 条主命令：cmdInit / cmdStatus / cmdToday / cmdLog / cmdList / cmdSet
- * Agent 通过 module.exports 调用各函数，逐步填充 TripPlan，最终生成 README.md。
+ * Agent 通过 module.exports 调用各函数，逐步填充 TripPlan，最终生成 出行计划文档。
  *
  * v1.2.0
  */
@@ -258,6 +258,20 @@ function generateTripId(destination, startDate) {
   const slug = destination.replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, '').toLowerCase();
   const date = startDate.replace(/-/g, '').substring(0, 6);
   return `${slug}-${date}`;
+}
+
+/**
+ * 根据行程数据生成计划文件名（基于文档标题）
+ * 格式: <目的地>·<首日主题>出行计划.md
+ * 例: 海坨山·姜庄子村小环线出行计划.md
+ */
+function getPlanFilename(trip) {
+  const safe = (s) => s.replace(/[\\/:*?"<>|#\n\r]/g, '').trim();
+  const dest = safe(trip.destination || '旅行');
+  const firstDay = trip.days && trip.days[0];
+  const theme = (firstDay && firstDay.theme && firstDay.theme !== trip.destination)
+    ? '·' + safe(firstDay.theme) : '';
+  return dest + theme + '出行计划.md';
 }
 
 function dateDiff(a, b) {
@@ -1831,8 +1845,8 @@ function cmdListArchive(state, tripId) {
       routeChanges: routeChanges.length,
       notes: allNotes,
     },
-    outputPath: path.join(trip.outputDir, 'upcoming', trip.tripId, 'README.md'),
-    archivePath: path.join(trip.outputDir, 'completed', trip.tripId, 'README.md'),
+    outputPath: path.join(trip.outputDir, 'upcoming', trip.tripId, getPlanFilename(trip)),
+    archivePath: path.join(trip.outputDir, 'completed', trip.tripId, getPlanFilename(trip)),
   };
 
   saveState(state, trip.outputDir);
@@ -2005,7 +2019,7 @@ function cmdGeneratePlan(tripId) {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
-  const filePath = path.join(dir, 'README.md');
+  const filePath = path.join(dir, getPlanFilename(trip));
   fs.writeFileSync(filePath, md, 'utf8');
 
   trip.status = STATUS.CONFIRMED;
@@ -2071,7 +2085,7 @@ function cmdAddDay(dayStr, routeStr, tripId) {
 
   let md = renderPlanReadme(trip);
   const dir = path.join(trip.outputDir, 'upcoming', trip.tripId);
-  const filePath = path.join(dir, 'README.md');
+  const filePath = path.join(dir, getPlanFilename(trip));
   fs.writeFileSync(filePath, md, 'utf8');
 
   return {
@@ -2103,7 +2117,7 @@ function cmdDelDay(dayStr, tripId) {
 
   let md = renderPlanReadme(trip);
   const dir = path.join(trip.outputDir, 'upcoming', trip.tripId);
-  const filePath = path.join(dir, 'README.md');
+  const filePath = path.join(dir, getPlanFilename(trip));
   fs.writeFileSync(filePath, md, 'utf8');
 
   return {
@@ -2159,7 +2173,7 @@ function cmdReorderDay(dayStr, action, targetDay, tripId) {
 
     let md = renderPlanReadme(trip);
     const dir = path.join(trip.outputDir, 'upcoming', trip.tripId);
-    const filePath = path.join(dir, 'README.md');
+    const filePath = path.join(dir, getPlanFilename(trip));
     fs.writeFileSync(filePath, md, 'utf8');
 
     return { ok: true, tripId: trip.tripId, message: `已交换 Day${srcIdx + 1} 和 Day${tgtIdx + 1}` };
@@ -2178,7 +2192,7 @@ function cmdReorderDay(dayStr, action, targetDay, tripId) {
 
   let md = renderPlanReadme(trip);
   const dir = path.join(trip.outputDir, 'upcoming', trip.tripId);
-  const filePath = path.join(dir, 'README.md');
+  const filePath = path.join(dir, getPlanFilename(trip));
   fs.writeFileSync(filePath, md, 'utf8');
 
   return {
@@ -2801,6 +2815,7 @@ module.exports = {
   saveConfig,
   getOutputDir,
   generateTripId,
+  getPlanFilename,
   formatDate,
   formatFullDate,
   getWeekday,
