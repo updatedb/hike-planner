@@ -217,11 +217,10 @@ function saveConfig(config) {
 }
 
 function getOutputDir(options) {
-  // 优先级：options.outputDir > hike-set 保存的 > HIKE_PLANNER_OUTPUT_DIR env > DEFAULT_OUTPUT_DIR
+  // 优先级：options.outputDir > hike-select 保存的 > DEFAULT_OUTPUT_DIR
   if (options && options.outputDir) return options.outputDir;
   const config = loadConfig();
   if (config.outputDir) return config.outputDir;
-  if (process.env.HIKE_PLANNER_OUTPUT_DIR) return process.env.HIKE_PLANNER_OUTPUT_DIR;
   return DEFAULT_OUTPUT_DIR;
 }
 
@@ -475,6 +474,15 @@ function cmdInit(startDate, destination, activity, options) {
   const outputDir = getOutputDir(opts);
   let state = loadState(outputDir);
 
+  // ── 目的地必填校验 ──
+  // 未提供目的地时不初始化，等待用户明确目的地
+  if (!destination || !destination.trim()) {
+    return {
+      error: '请先明确目的地，例如：hike-init 2026-06-01 大觉寺 徒步',
+      needsDestination: true,
+    };
+  }
+
   // 检查是否已有进行中的行程
   if (state.activeTripId) {
     const activeTrip = state.trips[state.activeTripId];
@@ -585,6 +593,15 @@ function cmdInit(startDate, destination, activity, options) {
 function _cmdInitLegacy(destination, options) {
   const outputDir = getOutputDir(options);
   let state = loadState(outputDir);
+
+  // ── 目的地必填校验 ──
+  // 未提供目的地时不初始化，等待用户明确目的地
+  if (!destination || !destination.trim()) {
+    return {
+      error: '请先明确目的地，例如：hike-init 大觉寺',
+      needsDestination: true,
+    };
+  }
 
   if (state.activeTripId) {
     const activeTrip = state.trips[state.activeTripId];

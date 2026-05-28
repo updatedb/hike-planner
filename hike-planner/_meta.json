@@ -35,10 +35,9 @@
     },
     "environment": {
       "variables": [
-        "AMAP_WEBSERVICE_KEY",
-        "HIKE_PLANNER_OUTPUT_DIR"
+        "AMAP_WEBSERVICE_KEY"
       ],
-      "description": "读取高德地图 API Key 和输出目录配置"
+      "description": "读取高德地图 API Key"
     },
     "execution": {
       "commands": [
