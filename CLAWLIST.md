@@ -126,3 +126,5 @@
   - [x] ClawHub 发布 v3.3.0 ✅ (k9759ntpsxp57nget33xgay2y987nwtx)
 - [x] v3.3.1: config.json gitignore + 默认值 ✅
   - [x] ClawHub 发布 v3.3.1 ✅ (k974tjq7ghe58vhcxw873963jn87mtq9)
+- [x] v3.3.2: config 默认值 webBaseUrl=http://localhost ✅
+  - [x] ClawHub 发布 v3.3.2 ✅ (k973yx4k44szrnjhd3vq9mta8n87m96b)
