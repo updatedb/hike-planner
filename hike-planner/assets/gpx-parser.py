@@ -123,10 +123,12 @@ def _analyze_points(points, source):
             dist = haversine(prev['lat'], prev['lng'], pt['lat'], pt['lng'])
             total_distance += dist
             ele_diff = pt['elevation'] - prev['elevation']
-            if ele_diff > 0:
-                total_ascent += ele_diff
-            else:
-                total_descent += abs(ele_diff)
+            # 0.5m 阈值滤 GPS 噪声，保留 Garmin 1s 级真实爬升数据
+            if abs(ele_diff) >= 0.5:
+                if ele_diff > 0:
+                    total_ascent += ele_diff
+                else:
+                    total_descent += abs(ele_diff)
 
         elevations.append(pt['elevation'])
 
