@@ -805,6 +805,28 @@ function cmdSetHikingRoutes(routes, tripId) {
     tips: r.tips || '',
     dayIndex: r.dayIndex || 0,
   }));
+
+  // GPX waypoints 自动更新到 day.nodes
+  routes.forEach(r => {
+    if (r.waypoints && r.waypoints.length >= 2 && r.dayIndex != null) {
+      const day = trip.days[r.dayIndex];
+      if (day) {
+        // 更新起点节点坐标
+        const startWP = r.waypoints[0];
+        const startNode = day.nodes[0];
+        if (startNode && startWP) {
+          startNode.gps = { lat: startWP.lat, lng: startWP.lng };
+        }
+        // 更新终点节点坐标
+        const endWP = r.waypoints[r.waypoints.length - 1];
+        const endNode = day.nodes[day.nodes.length - 1];
+        if (endNode && endWP) {
+          endNode.gps = { lat: endWP.lat, lng: endWP.lng };
+        }
+      }
+    }
+  });
+
   trip.updatedAt = new Date().toISOString();
   saveState(state, trip.outputDir);
 
@@ -850,7 +872,7 @@ function saveGpxFile(trip, sourcePath) {
     return { gpxPath: `gpx/${baseName}${ext}`, trackMapPath: null, error: `轨迹地图生成失败: ${e.message}` };
   }
 
-  // 返回 gpx 目录内的相对路径（用于 README 链接）
+  // 返回 gpx 目录内的相对路径（用于行程计划链接）
   return { gpxPath: `gpx/${baseName}${ext}`, trackMapPath: `gpx/${baseName}_轨迹地图.html`, error: null };
 }
 
@@ -2119,10 +2141,10 @@ function cmdSet(key, value) {
   return { error: `hike-set 已废弃，请使用 hike-select。<br/>设置输出目录：hike-select output <路径><br/>选择行程：hike-select <行程名>` };
 }
 
-// ── 命令：生成 README.md ───────────────────────────────
+// ── 命令：生成行程计划文件 ───────────────────────────
 
 /**
- * 按 PLAN_TEMPLATE 格式渲染完整 README
+ * 按 PLAN_TEMPLATE 格式渲染完整行程计划
  * @param {string} tripId
  * @returns {object} { content, filePath }
  */
@@ -2881,7 +2903,7 @@ function renderPlanReadme(trip) {
 // ── 模板完整性检查 ──────────────────────────────────
 
 /**
- * 对照 PLAN_TEMPLATE 检查生成的 README 内容是否包含所有必需板块。
+ * 对照 PLAN_TEMPLATE 检查生成的行程计划内容是否包含所有必需板块。
  * 在计划生成完成后调用，确保输出质量。
  *
  * @param {string} content - renderPlanReadme 的输出
@@ -3041,6 +3063,7 @@ module.exports = {
 
   // GPX/KML 工具
   saveGpxFile,
+  saveMediaFile,
 
   // 工具函数
   loadConfig,

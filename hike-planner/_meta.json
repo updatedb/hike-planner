@@ -20,7 +20,7 @@
         "read",
         "write"
       ],
-      "description": "在用户指定的 outputDir 下读写行程状态文件和行程计划 README.md"
+      "description": "在用户指定的 outputDir 下读写行程状态文件和行程计划文件"
     },
     "network": {
       "domains": [
