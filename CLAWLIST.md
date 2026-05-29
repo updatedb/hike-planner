@@ -124,3 +124,5 @@
   - [x] ClawHub 发布 v3.2.0 ✅ (k97b2pemm5xepyx26c54fpj51187mqkf)
 - [x] v3.3.0: hike-select baseurl + webBaseUrl迁移config + 默认localhost + 中文keywords ✅
   - [x] ClawHub 发布 v3.3.0 ✅ (k9759ntpsxp57nget33xgay2y987nwtx)
+- [x] v3.3.1: config.json gitignore + 默认值 ✅
+  - [x] ClawHub 发布 v3.3.1 ✅ (k974tjq7ghe58vhcxw873963jn87mtq9)
