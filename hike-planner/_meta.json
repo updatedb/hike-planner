@@ -3,7 +3,7 @@
   "ownerId": "kn73h0b3vxspe7143ad7dk07xn822pwv",
   "slug": "hike-planner",
   "version": "3.2.0",
-  "description": "v3.2.0: config迁移到skill目录 + 隐私声明修正 + 只查不买→不执行订票下单候补支付",
+  "description": "一站式徒步出行规划：生成含徒步路线/交通/住宿/人文/装备的完整行程计划。支持GPX/KML轨迹解析与地图渲染，多源交叉验证（12306/两步路/高德/小红书）。不执行订票/下单/候补/支付。",
   "keywords": [
     "hiking",
     "trip",
@@ -41,9 +41,10 @@
     },
     "environment": {
       "variables": [
-        "AMAP_WEBSERVICE_KEY"
+        "AMAP_WEBSERVICE_KEY",
+        "WEB_BASE_URL"
       ],
-      "description": "读取高德地图 API Key"
+      "description": "读取高德地图 API Key 和 Web 基础 URL（用于轨迹地图链接）"
     },
     "execution": {
       "commands": [
