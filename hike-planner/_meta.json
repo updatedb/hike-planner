@@ -2,8 +2,8 @@
   "name": "Hike Planner",
   "ownerId": "kn73h0b3vxspe7143ad7dk07xn822pwv",
   "slug": "hike-planner",
-  "version": "2.2.0",
-  "description": "v2.2.0: 徒步路线分类(穿越/环线/往返) + 每日安排徒步合并展示",
+  "version": "2.3.0",
+  "description": "v2.3.0: 三文件职责统一 + 死代码清理 + getRouteTypesForDay接入 + GPX提醒/截图保存/GPS更新节点 + 函数去Readme后缀",
   "keywords": [
     "hiking",
     "trip",

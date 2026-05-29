@@ -114,3 +114,5 @@
   - [x] ClawHub 发布 v2.1.0 ✅ (k97bkdzhycvyja9t4kyv875hdh87k5qv)
 - [x] v2.2.0: 徒步路线分类(穿越/环线/往返) + 每日安排徒步合并展示 ✅
   - [x] ClawHub 发布 v2.2.0 ✅ (k9786ykgqtfp5ys9362dfny73187jas5)
+- [x] v2.3.0: 三文件职责统一 + 死代码清理 + getRouteTypesForDay 接入 + GPX 提醒/截图保存/GPS 更新节点 + 函数去 Readme 后缀 ✅
+  - [x] ClawHub 发布 v2.3.0 ✅ (k97eknrk135pm2qpdxff87tdwh87nmrg)
