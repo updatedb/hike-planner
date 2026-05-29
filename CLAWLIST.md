@@ -118,3 +118,5 @@
   - [x] ClawHub 发布 v2.3.0 ✅ (k97eknrk135pm2qpdxff87tdwh87nmrg)
 - [x] v3.0.0: 域名对齐 + OPENMEDIA→WEB_BASE_URL + SOP重命名 + 删除render-itinerary-map.sh + 地理编码4策略 ✅
   - [x] ClawHub 发布 v3.0.0 ✅ (k977yqchb3k7w2kq7xphy0qj3d87mdkt)
+- [x] v3.1.0: 徒步路线地图虚线渲染 + GPX轨迹虚线 + SKILL可视更新 ✅
+  - [x] ClawHub 发布 v3.1.0 ✅ (k9760qac5zk3170vq7g1fskb0987nemz)

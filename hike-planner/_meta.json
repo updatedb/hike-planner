@@ -2,8 +2,8 @@
   "name": "Hike Planner",
   "ownerId": "kn73h0b3vxspe7143ad7dk07xn822pwv",
   "slug": "hike-planner",
-  "version": "3.0.0",
-  "description": "v3.0.0: 三文件职责统一 + 死代码清理 + 域名对齐 + SOP重命名 + 删除render-itinerary-map.sh + 地理编码4策略",
+  "version": "3.1.0",
+  "description": "v3.1.0: 徒步路线地图虚线渲染 + GPX轨迹虚线 + SKILL可视更新",
   "keywords": [
     "hiking",
     "trip",
