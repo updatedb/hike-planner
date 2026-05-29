@@ -11,7 +11,11 @@
     "planner",
     "route",
     "transportation",
-    "map"
+    "map",
+    "自驾游",
+    "旅行",
+    "旅游",
+    "路线"
   ],
   "permissions": {
     "filesystem": {
