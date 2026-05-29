@@ -122,3 +122,5 @@
   - [x] ClawHub 发布 v3.1.0 ✅ (k9760qac5zk3170vq7g1fskb0987nemz)
 - [x] v3.2.0: config迁移到skill目录 + 隐私声明修正 + 只查不买→不执行订票下单候补支付 ✅
   - [x] ClawHub 发布 v3.2.0 ✅ (k97b2pemm5xepyx26c54fpj51187mqkf)
+- [x] v3.3.0: hike-select baseurl + webBaseUrl迁移config + 默认localhost + 中文keywords ✅
+  - [x] ClawHub 发布 v3.3.0 ✅ (k9759ntpsxp57nget33xgay2y987nwtx)
