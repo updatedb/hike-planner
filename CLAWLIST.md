@@ -130,3 +130,5 @@
   - [x] ClawHub 发布 v3.3.2 ✅ (k973yx4k44szrnjhd3vq9mta8n87m96b)
 - [x] v3.3.3: 轨迹HTML flex布局替代vh + 修复openmedia预览显示不全 ✅
   - [x] ClawHub 发布 v3.3.3 ✅ (k979n3a5v8ac32hc1ynk74pe5h87nz7f)
+- [x] v3.3.4: 爬升阈值3m→0.5m + 坐标精度压缩+大文件采样 + gpx统一阈值 ✅
+  - [x] ClawHub 发布 v3.3.4 ✅ (k97arcn8zt857qe7crn1f8wx6587nnf8)
