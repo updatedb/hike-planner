@@ -82,35 +82,6 @@ const SMS_PATTERNS = {
   ],
 };
 
-// ── 节点类型 → 路线类型映射（地图渲染用） ────────────
-// 高德地图支持的路线类型: driving / walking / riding / transfer / straight
-
-const NODE_ROUTE_TYPE = {
-  // 徒步/登山 → walking（步行导航，仅用于短距连续段）
-  hiking: 'walking',
-  // 包车/出租/自驾 → driving
-  taxi: 'driving',
-  car: 'driving',
-  selfdrive: 'driving',
-  // 公交/大巴 → driving（高德无公交专用路线，remark 标注实际方式）
-  bus: 'driving',
-  // 火车/飞机 → straight（直线，remark 标注实际方式）
-  train: 'straight',
-  flight: 'straight',
-  // 地铁 → transfer
-  metro: 'transfer',
-  // 默认: driving
-};
-
-const DEFAULT_ROUTE_TYPE = 'driving';
-
-/**
- * 获取节点的路线类型（用于地图渲染）
- */
-function getNodeRouteType(node) {
-  return NODE_ROUTE_TYPE[node.type] || DEFAULT_ROUTE_TYPE;
-}
-
 /**
  * 获取节点的交通标签（用于时间线展示）
  * 徒步节点 → "🥾 徒步"
@@ -157,7 +128,7 @@ function getRouteTypesForDay(day) {
   for (let i = 0; i < nodes.length - 1; i++) {
     const a = nodes[i];
     const b = nodes[i + 1];
-    let routeType = DEFAULT_ROUTE_TYPE;
+    let routeType = 'driving';
 
     // 如果两端都是徒步 → walking
     if (a.type === 'hiking' && b.type === 'hiking') {
@@ -182,7 +153,7 @@ function getRouteTypesForDay(day) {
     }
     // 其他按节点类型
     else {
-      routeType = getNodeRouteType(a) === 'walking' ? 'walking' : getNodeRouteType(a);
+      routeType = getNodeRouteType(a.type) === 'walking' ? 'walking' : getNodeRouteType(a.type);
     }
 
     segments.push({
@@ -2128,19 +2099,6 @@ function cmdSelect(arg1, arg2) {
   };
 }
 
-// ── 命令：hike-set（已废弃，委托给 hike-select） ──────
-
-/**
- * @deprecated 请使用 hike-select output <path> 代替。
- * 保留向后兼容。
- */
-function cmdSet(key, value) {
-  if (key === 'outputDir') {
-    return cmdSelect('output', value);
-  }
-  return { error: `hike-set 已废弃，请使用 hike-select。<br/>设置输出目录：hike-select output <路径><br/>选择行程：hike-select <行程名>` };
-}
-
 // ── 命令：生成行程计划文件 ───────────────────────────
 
 /**
@@ -2725,10 +2683,8 @@ function renderPlan(trip) {
         const dayHikeRoute = trip.hikingRoutes.find(r => r.dayIndex === day.dayIndex || r.name === (day.nodes.find(n => n.type === 'hiking') || {}).name);
         const gpsCoords = (dayHikeRoute && dayHikeRoute.waypoints && dayHikeRoute.waypoints.length >= 2) ? dayHikeRoute.waypoints : null;
         // 逐段推导路线类型（根据节点类型自动映射）
-        const segTypes = [];
-        for (let j = 0; j < day.nodes.length - 1; j++) {
-          segTypes.push(getNodeRouteType(day.nodes[j].type));
-        }
+        const { routeTypes } = getRouteTypesForDay(day);
+        const segTypes = routeTypes ? routeTypes.split(',') : [];
         const { link, error } = renderDayMap(day.dayIndex, stopNames, trip.destinationRegion, gpsCoords, segTypes);
         if (link) {
           day.mapUrl = link;
@@ -3023,8 +2979,6 @@ module.exports = {
   cmdLog,
   cmdList,
   cmdSelect,
-  cmdSet,  // deprecated, kept for backward compat
-
   // 汇总归档（hike-list <tripId>）
   cmdListArchive,
 
@@ -3055,8 +3009,7 @@ module.exports = {
   applySMSToTrip,
   compareActualVsPlan,
 
-  // 新增：节点类型 → 路线类型映射（地图渲染）
-  NODE_ROUTE_TYPE,
+  // 节点类型 → 路线类型映射（地图渲染）
   getNodeRouteType,
   getNodeTransportLabel,
   getRouteTypesForDay,
