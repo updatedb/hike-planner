@@ -1982,7 +1982,7 @@ function cmdListArchive(state, tripId) {
  */
 function cmdSelect(arg1, arg2) {
   if (!arg1) {
-    return { error: '用法：hike-select output <路径> 或 hike-select <行程名>' };
+    return { error: '用法：hike-select output <路径> | baseurl <URL> | <行程名>' };
   }
 
   // ── 用法 1：hike-select output <path> ──
@@ -2003,6 +2003,27 @@ function cmdSelect(arg1, arg2) {
       value: resolved,
       configPath: CONFIG_FILE,
       message: `默认输出目录已设置为：${resolved}`,
+    };
+  }
+
+  // ── 用法 2：hike-select baseurl <url> ──
+  if (arg1 === 'baseurl') {
+    if (!arg2) {
+      const config = loadConfig();
+      return {
+        current: config.webBaseUrl || 'http://localhost（默认）',
+        message: `当前 webBaseUrl: ${config.webBaseUrl || 'http://localhost（默认）'}`,
+      };
+    }
+    const url = arg2.replace(/\/+$/, ''); // 去除尾部斜杠
+    const config = loadConfig();
+    config.webBaseUrl = url;
+    saveConfig(config);
+    return {
+      key: 'webBaseUrl',
+      value: url,
+      configPath: CONFIG_FILE,
+      message: `Web 基础 URL 已设置为：${url}`,
     };
   }
 
@@ -2784,7 +2805,7 @@ function renderPlan(trip) {
       if (route.gpxSource) lines.push(`| 轨迹来源 | ${route.gpxSource} |`);
       if (route.trackMapPath) {
         const config = loadConfig();
-        const webBase = config.webBaseUrl;
+        const webBase = config.webBaseUrl || 'http://localhost';
         if (webBase) {
           const encodedPath = encodeURIComponent(`upcoming/${trip.tripId}/${route.trackMapPath}`);
           const webUrl = `${webBase}/api/openmedia/raw?root=trip&path=${encodedPath}`;

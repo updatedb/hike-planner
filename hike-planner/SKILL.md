@@ -40,6 +40,7 @@ permissions:
 | `hike-init [日期] [目的地] [活动]` | 启动规划。日期/目的地/活动为必填，直接从参数解析。首次使用将征得您同意确认保存到 outputDir。示例：`hike-init 2026-06-01 古蜀道 徒步+文化探访`。若未提供完整参数则交互补问缺失项。 |
 | `hike-list` | 列出所有未完成行程；`hike-list <tripId>` 归档并汇总指定行程 |
 | `hike-select output <路径>` | 设置/切换默认输出目录（持久化到 `{skillDir}/planner/config.json`） |
+| `hike-select baseurl <URL>` | 设置 Web 基础 URL（用于轨迹地图链接，默认 `http://localhost`）。不传参数查看当前值。 |
 | `hike-select <行程名>` | 激活/选择某个行程进行管理。匹配 tripId 或目的地关键词（模糊匹配）。选择后 hike-status/today/log 都作用于该行程。 |
 | `hike-status` | 查看当前行程状态与概览（作用于 hike-select 选中的行程） |
 | `hike-log [内容]` | 记录行程最新信息：🚄 订好车票 / ✈️ 订好机票 / 🏨 订了酒店 / 💰 支出花销。粘贴 12306/航司/酒店 OTA 订单短信自动解析并更新行程。⚠️ 解析前会弹窗确认，仅提取订单关键字段（车次/航班/站点/日期），不保留原始短信全文。 |
