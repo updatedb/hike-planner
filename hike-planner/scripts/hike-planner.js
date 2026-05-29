@@ -271,7 +271,7 @@ function generateTripId(destination, startDate, slug) {
  */
 function getPlanFilename(trip) {
   // 从 trip.title 提取（如不存在则 fallback 到默认标题）
-  const h1 = trip.title || `🥾 ${trip.destination || '旅行'} 出行计划`;
+  const h1 = trip.title || `🥾 ${trip.destination || '旅行'}出行计划`;
   const safe = h1
     .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}]/gu, '')  // 去 emoji
     .replace(/[\\/:*?"<>|]/g, '')           // 仅去非法文件名字符，保留 ·→空格中文等
@@ -509,7 +509,19 @@ function cmdInit(startDate, destination, activity, options) {
   trip.tripId = generateTripId(destination, startDate);
   trip.dates.start = startDate;
   trip.dates.end = startDate; // 默认单日，后续通过 cmdSetRequirements 修正
-  trip.title = `🥾 ${destination} 出行计划`;
+  // 文件名格式: 🥾 目的地·活动出行计划
+  if (activity && activity.trim()) {
+    const actTrimmed = activity.trim();
+    const isMultiPart = /[+、/ ]/.test(actTrimmed);
+    const hasHiking = actTrimmed.includes('徒步');
+    if (isMultiPart || hasHiking) {
+      trip.title = `🥾 ${destination}·${actTrimmed}出行计划`;
+    } else {
+      trip.title = `🥾 ${destination}·${actTrimmed}徒步出行计划`;
+    }
+  } else {
+    trip.title = `🥾 ${destination}出行计划`;
+  }
 
   // 活动描述写入 interests + fitness 推导
   const activityParts = (activity || '').split(/[+、\/]/).map(s => s.trim()).filter(Boolean);
@@ -546,6 +558,7 @@ function cmdInit(startDate, destination, activity, options) {
     { id: 'transport', label: '交通偏好（火车/飞机/自驾）', required: false },
     { id: 'accommodation', label: '住宿偏好（酒店类型/预算）', required: false },
     { id: 'fitness', label: '体力水平（轻松/适中/高强度）', required: false },
+    { id: 'gpxFile', label: '如有 GPX/KML 轨迹文件或两步路链接，请提供，可大幅提高路线精度', required: false },
   ];
 
   if (missing.length > 0) {
@@ -625,7 +638,7 @@ function _cmdInitLegacy(destination, options) {
 
   const trip = createTripPlan(destination, options);
   trip.tripId = generateTripId(destination, getToday());
-  trip.title = `🥾 ${destination} 出行计划`;
+  trip.title = `🥾 ${destination}出行计划`;
 
   state.trips[trip.tripId] = trip;
   state.activeTripId = trip.tripId;
@@ -646,6 +659,7 @@ function _cmdInitLegacy(destination, options) {
         { id: 'transport', label: '交通偏好（火车/飞机/自驾）', required: false },
         { id: 'accommodation', label: '住宿偏好（酒店类型/预算）', required: false },
         { id: 'fitness', label: '体力水平（轻松/适中/高强度）', required: false },
+        { id: 'gpxFile', label: '如有 GPX/KML 轨迹文件或两步路链接，请提供，可大幅提高路线精度', required: false },
         { id: 'interests', label: '兴趣方向（历史文化/自然风光/美食等）', required: false },
       ],
     },
@@ -806,6 +820,18 @@ function cmdSetHikingRoutes(routes, tripId) {
  * @returns {{ gpxPath: string, trackMapPath: string, error: string|null }}
  */
 function saveGpxFile(trip, sourcePath) {
+  // 检查源文件是否存在
+  const resolvedPath = path.resolve(sourcePath);
+  if (!fs.existsSync(resolvedPath)) {
+    // 尝试 webchat inbound 路径
+    const inboundCandidate = path.join(os.homedir(), '.openclaw', 'media', 'inbound', path.basename(sourcePath));
+    if (fs.existsSync(inboundCandidate)) {
+      sourcePath = inboundCandidate;
+    } else {
+      return { gpxPath: null, trackMapPath: null, error: `文件不存在: ${resolvedPath}。请确认文件路径是否正确。如果文件是通过 webchat 上传的，请使用绝对路径 ~/.openclaw/media/inbound/<文件名>` };
+    }
+  }
+
   const gpxDir = path.join(trip.outputDir, 'upcoming', trip.tripId, 'gpx');
   fs.mkdirSync(gpxDir, { recursive: true });
 
@@ -826,6 +852,37 @@ function saveGpxFile(trip, sourcePath) {
 
   // 返回 gpx 目录内的相对路径（用于 README 链接）
   return { gpxPath: `gpx/${baseName}${ext}`, trackMapPath: `gpx/${baseName}_轨迹地图.html`, error: null };
+}
+
+/**
+ * 保存截图/图片文件到行程 media 目录
+ * @param {object} trip - 行程对象
+ * @param {string} sourcePath - 上传的图片/截图文件路径
+ * @returns {{ mediaPath: string|null, error: string|null }}
+ */
+function saveMediaFile(trip, sourcePath) {
+  const mediaDir = path.join(trip.outputDir, 'upcoming', trip.tripId, 'media');
+  fs.mkdirSync(mediaDir, { recursive: true });
+
+  const resolvedPath = sourcePath.startsWith('~')
+    ? path.join(os.homedir(), sourcePath.slice(1))
+    : sourcePath;
+
+  if (!fs.existsSync(resolvedPath)) {
+    const inboundCandidate = path.join(os.homedir(), '.openclaw', 'media', 'inbound', path.basename(sourcePath));
+    if (fs.existsSync(inboundCandidate)) {
+      sourcePath = inboundCandidate;
+    } else {
+      return { mediaPath: null, error: `文件不存在: ${resolvedPath}` };
+    }
+  }
+
+  const ext = path.extname(resolvedPath);
+  const baseName = path.basename(resolvedPath, ext);
+  const destFile = path.join(mediaDir, `${baseName}${ext}`);
+  fs.copyFileSync(resolvedPath, destFile);
+
+  return { mediaPath: `media/${baseName}${ext}`, error: null };
 }
 
 // ── 命令：设置交通 ────────────────────────────────────
@@ -2500,7 +2557,9 @@ function renderDayMap(dayIndex, stops, region, coords, routeTypes) {
     // 优先使用 GPX/KML 提取的 GPS 坐标（无需地理编码，精度最高）
     if (coords && coords.length >= 2) {
       const coordsStr = coords.map(c => `${c.lng},${c.lat}`).join('|');
-      const namesStr = stops.map(s => s.replace(/,/g, ' ')).join('|');
+      // 使用 waypoints 的名称作为 POI 标签，确保起点/终点与坐标一致
+      const waypointNames = coords.map(c => (c.name || '').replace(/,/g, ' '));
+      const namesStr = waypointNames.join('|');
       const env = { ...process.env, AMAP_WEBSERVICE_KEY: key };
       const result = execSync(
         `node "${scriptPath}" --coords="${coordsStr}" --names="${namesStr}" --routeType=${routeTypeArg}`,
@@ -2746,7 +2805,14 @@ function renderPlanReadme(trip) {
       if (route.keyNodes.length > 0) lines.push(`| 关键节点 | ${route.keyNodes.join('→')} |`);
       if (route.gpxSource) lines.push(`| 轨迹来源 | ${route.gpxSource} |`);
       if (route.trackMapPath) {
-        lines.push(`| 🗺️ 轨迹地图 | [查看](${route.trackMapPath}) |`);
+        const openmediaBase = process.env.OPENMEDIA_PUBLIC_BASE_URL;
+        if (openmediaBase) {
+          const encodedPath = encodeURIComponent(`upcoming/${trip.tripId}/${route.trackMapPath}`);
+          const openmediaUrl = `${openmediaBase}/api/openmedia/raw?root=trip&path=${encodedPath}`;
+          lines.push(`| 🗺️ 轨迹地图 | [查看](${openmediaUrl}) |`);
+        } else {
+          lines.push(`| 🗺️ 轨迹地图 | [查看](${route.trackMapPath}) |`);
+        }
       }
       if (route.tips) lines.push(`| ⚠️ 提示 | ${route.tips} |`);
       lines.push('');
@@ -2761,6 +2827,24 @@ function renderPlanReadme(trip) {
     lines.push('|------|------|');
     for (const [type, items] of Object.entries(trip.equipment)) {
       lines.push(`| ${type} | ${Array.isArray(items) ? items.join('、') : items} |`);
+    }
+    // 媒体文件列表
+    const mediaDir = path.join(trip.outputDir, 'upcoming', trip.tripId, 'media');
+    try {
+      if (fs.existsSync(mediaDir)) {
+        const mediaFiles = fs.readdirSync(mediaDir).filter(f => /\.(png|jpg|jpeg|gif|webp|bmp|svg|mp4|mov|avi|webm)$/i.test(f));
+        if (mediaFiles.length > 0) {
+          lines.push('');
+          lines.push('### 📸 截图/媒体文件');
+          lines.push('');
+          for (const file of mediaFiles) {
+            lines.push(`- [${file}](media/${encodeURIComponent(file)})`);
+          }
+          lines.push('');
+        }
+      }
+    } catch (e) {
+      // ignore media directory errors
     }
   } else {
     lines.push('| 类型 | 物品 |');
