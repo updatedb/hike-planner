@@ -116,3 +116,5 @@
   - [x] ClawHub 发布 v2.2.0 ✅ (k9786ykgqtfp5ys9362dfny73187jas5)
 - [x] v2.3.0: 三文件职责统一 + 死代码清理 + getRouteTypesForDay 接入 + GPX 提醒/截图保存/GPS 更新节点 + 函数去 Readme 后缀 ✅
   - [x] ClawHub 发布 v2.3.0 ✅ (k97eknrk135pm2qpdxff87tdwh87nmrg)
+- [x] v3.0.0: 域名对齐 + OPENMEDIA→WEB_BASE_URL + SOP重命名 + 删除render-itinerary-map.sh + 地理编码4策略 ✅
+  - [x] ClawHub 发布 v3.0.0 ✅ (k977yqchb3k7w2kq7xphy0qj3d87mdkt)
