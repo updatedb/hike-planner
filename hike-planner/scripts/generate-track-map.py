@@ -296,14 +296,15 @@ def generate_html(points, stats, title, tile_provider):
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
 * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; background: #f5f5f5; }}
-.header {{ padding: 16px 20px; background: linear-gradient(135deg, #1a73e8 0%, #1557b0 100%); color: #fff; }}
+html, body {{ height: 100%; margin: 0; padding: 0; }}
+body {{ display: flex; flex-direction: column; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; background: #f5f5f5; }}
+.header {{ padding: 16px 20px; background: linear-gradient(135deg, #1a73e8 0%, #1557b0 100%); color: #fff; flex-shrink: 0; }}
 .header h1 {{ font-size: 20px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }}
 .header h1 .icon {{ font-size: 24px; }}
 .stats {{ display: flex; gap: 12px; flex-wrap: wrap; }}
 .stat {{ background: rgba(255,255,255,0.18); padding: 8px 14px; border-radius: 20px; font-size: 13px; backdrop-filter: blur(4px); display: flex; align-items: center; gap: 4px; }}
 .stat b {{ font-weight: 700; }}
-#map {{ height: 55vh; min-height: 360px; width: 100%; }}
+#map {{ flex: 1; min-height: 300px; width: 100%; }}
 .legend {{ padding: 12px 20px; background: #fff; border-bottom: 1px solid #e0e0e0; font-size: 13px; color: #555; display: flex; flex-wrap: wrap; gap: 12px; }}
 .legend-item {{ display: flex; align-items: center; gap: 6px; }}
 .legend-dot {{ display: inline-block; width: 12px; height: 12px; border-radius: 50%; border: 2px solid; }}
@@ -321,7 +322,7 @@ body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC
     .header h1 {{ font-size: 17px; }}
     .stats {{ gap: 8px; }}
     .stat {{ padding: 6px 10px; font-size: 12px; }}
-    #map {{ height: 45vh; }}
+    #map {{ min-height: 250px; }}
     .legend {{ font-size: 12px; gap: 8px; }}
 }}
 
@@ -574,14 +575,15 @@ def generate_compare_html(all_data, stats_list, title, tile_provider):
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
 * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; background: #f5f5f5; }}
-.header {{ padding: 16px 20px; background: linear-gradient(135deg, #1a73e8 0%, #1557b0 100%); color: #fff; }}
+html, body {{ height: 100%; margin: 0; padding: 0; }}
+body {{ display: flex; flex-direction: column; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; background: #f5f5f5; }}
+.header {{ padding: 16px 20px; background: linear-gradient(135deg, #1a73e8 0%, #1557b0 100%); color: #fff; flex-shrink: 0; }}
 .header h1 {{ font-size: 20px; font-weight: 600; margin-bottom: 12px; }}
 .stats-panel {{ background: rgba(255,255,255,0.12); border-radius: 10px; padding: 12px 16px; backdrop-filter: blur(4px); }}
 .stats-panel table {{ width: 100%; border-collapse: collapse; font-size: 13px; }}
 .stats-panel th {{ text-align: left; padding: 4px 8px; border-bottom: 1px solid rgba(255,255,255,0.3); font-weight: 600; }}
 .stats-panel td {{ padding: 3px 8px; }}
-#map {{ height: 55vh; min-height: 360px; width: 100%; }}
+#map {{ flex: 1; min-height: 300px; width: 100%; }}
 .legend {{ padding: 12px 20px; background: #fff; border-bottom: 1px solid #e0e0e0; font-size: 13px; color: #555; display: flex; flex-wrap: wrap; gap: 16px; }}
 .legend-item {{ display: flex; align-items: center; gap: 6px; }}
 .legend-dot {{ display: inline-block; width: 10px; height: 10px; border-radius: 50%; }}
@@ -590,7 +592,7 @@ body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC
 @media (max-width: 600px) {{
     .header h1 {{ font-size: 17px; }}
     .stats-panel {{ font-size: 12px; }}
-    #map {{ height: 45vh; }}
+    #map {{ min-height: 250px; }}
 }}
 </style>
 </head>
