@@ -1,8 +1,8 @@
 /**
- * hike-planner.js — State Machine + Command Handlers
+ * hike-planner.js - State Machine + Command Handlers
  *
- * 6 条主命令：cmdInit / cmdStatus / cmdToday / cmdLog / cmdList / cmdSet
- * Agent 通过 module.exports 调用各函数，逐步填充 TripPlan，最终生成 出行计划文档。
+ * 6 条主命令:cmdInit / cmdStatus / cmdToday / cmdLog / cmdList / cmdSet
+ * Agent 通过 module.exports 调用各函数,逐步填充 TripPlan,最终生成 出行计划文档。
  *
  * v1.2.0
  */
@@ -56,34 +56,34 @@ const DEVIATION_THRESHOLDS = {
 
 const SMS_PATTERNS = {
   // 12306 火车票订单短信
-  // "您的订单D2008，成都东07:50-剑门关09:21，二等座01车02A号，订单E123456789"
-  // "订单号E123456789，车次D2008，成都东07:50-剑门关09:21，二等座01车02A号"
+  // "您的订单D2008,成都东07:50-剑门关09:21,二等座01车02A号,订单E123456789"
+  // "订单号E123456789,车次D2008,成都东07:50-剑门关09:21,二等座01车02A号"
   train: [
-    // 模式1: 订单+车次号 直接格式（12306 常见：您的订单D2008，成都东07:50-剑门关09:21，二等座...）
-    /订单\s*([GCKDTZYL]\d+)(?:次)?[，,、\s]*([\u4e00-\u9fa5]+?(?:东|南|西|北|关|桥|口|岭|站)?)\s*(\d{1,2}:\d{2})[-—~至到]\s*([\u4e00-\u9fa5]+?(?:东|南|西|北|关|桥|口|岭|站)?)\s*(\d{1,2}:\d{2})[，,、\s]*([\u4e00-\u9fa5]+座\d*车?\d*[号座FABC]?\d*).*?订单[号编]?\s*([A-Za-z0-9]+)/,
+    // 模式1: 订单+车次号 直接格式(12306 常见:您的订单D2008,成都东07:50-剑门关09:21,二等座...)
+    /订单\s*([GCKDTZYL]\d+)(?:次)?[,,、\s]*([\u4e00-\u9fa5]+?(?:东|南|西|北|关|桥|口|岭|站)?)\s*(\d{1,2}:\d{2})[--~至到]\s*([\u4e00-\u9fa5]+?(?:东|南|西|北|关|桥|口|岭|站)?)\s*(\d{1,2}:\d{2})[,,、\s]*([\u4e00-\u9fa5]+座\d*车?\d*[号座FABC]?\d*).*?订单[号编]?\s*([A-Za-z0-9]+)/,
     // 模式2: 车次 + 出发站时间-到达站时间 + 座位 + 订单号
-    /车次\s*([GCKDTZYL]\d+).*?([\u4e00-\u9fa5]+?(?:东|南|西|北|关|桥|口|岭|站)?)\s*(\d{1,2}:\d{2})\s*[-—~至到]\s*([\u4e00-\u9fa5]+?(?:东|南|西|北|关|桥|口|岭|站)?)\s*(\d{1,2}:\d{2}).*?([\u4e00-\u9fa5]+座?(?:\d+车\d+[号座FABC]?\d*)?).*?订单[号编]?\s*([A-Za-z0-9]+)/,
+    /车次\s*([GCKDTZYL]\d+).*?([\u4e00-\u9fa5]+?(?:东|南|西|北|关|桥|口|岭|站)?)\s*(\d{1,2}:\d{2})\s*[--~至到]\s*([\u4e00-\u9fa5]+?(?:东|南|西|北|关|桥|口|岭|站)?)\s*(\d{1,2}:\d{2}).*?([\u4e00-\u9fa5]+座?(?:\d+车\d+[号座FABC]?\d*)?).*?订单[号编]?\s*([A-Za-z0-9]+)/,
     // 模式3: 订单号 + 车次 变体
-    /订单[号编]?\s*([A-Za-z0-9]+).*?车次\s*([GCKDTZYL]\d+).*?([\u4e00-\u9fa5]+?(?:东|南|西|北|关|桥|口|岭|站)?)\s*(\d{1,2}:\d{2})\s*[-—~至到]\s*([\u4e00-\u9fa5]+?(?:东|南|西|北|关|桥|口|岭|站)?)\s*(\d{1,2}:\d{2}).*?([\u4e00-\u9fa5]+座)/,
+    /订单[号编]?\s*([A-Za-z0-9]+).*?车次\s*([GCKDTZYL]\d+).*?([\u4e00-\u9fa5]+?(?:东|南|西|北|关|桥|口|岭|站)?)\s*(\d{1,2}:\d{2})\s*[--~至到]\s*([\u4e00-\u9fa5]+?(?:东|南|西|北|关|桥|口|岭|站)?)\s*(\d{1,2}:\d{2}).*?([\u4e00-\u9fa5]+座)/,
   ],
   // 航司/机票订单短信
-  // "航班CA1234，北京-成都，2026-05-13 08:00-10:30，经济舱，订单FL9876543"
+  // "航班CA1234,北京-成都,2026-05-13 08:00-10:30,经济舱,订单FL9876543"
   flight: [
-    /航班\s*([A-Z]{2}\d+).*?([\u4e00-\u9fa5]+)\s*[-—~至到]\s*([\u4e00-\u9fa5]+).*?(\d{4}-\d{2}-\d{2})\s*(\d{1,2}:\d{2})\s*[-—~至到]\s*(\d{1,2}:\d{2}).*?([\u4e00-\u9fa5]+舱).*?订单[号编]?\s*([A-Za-z0-9]+)/,
-    /订单[号编]?\s*([A-Za-z0-9]+).*?航班\s*([A-Z]{2}\d+).*?([\u4e00-\u9fa5]+)\s*[-—~至到]\s*([\u4e00-\u9fa5]+).*?(\d{4}-\d{2}-\d{2})\s*(\d{1,2}:\d{2})\s*[-—~至到]\s*(\d{1,2}:\d{2})/,
+    /航班\s*([A-Z]{2}\d+).*?([\u4e00-\u9fa5]+)\s*[--~至到]\s*([\u4e00-\u9fa5]+).*?(\d{4}-\d{2}-\d{2})\s*(\d{1,2}:\d{2})\s*[--~至到]\s*(\d{1,2}:\d{2}).*?([\u4e00-\u9fa5]+舱).*?订单[号编]?\s*([A-Za-z0-9]+)/,
+    /订单[号编]?\s*([A-Za-z0-9]+).*?航班\s*([A-Z]{2}\d+).*?([\u4e00-\u9fa5]+)\s*[--~至到]\s*([\u4e00-\u9fa5]+).*?(\d{4}-\d{2}-\d{2})\s*(\d{1,2}:\d{2})\s*[--~至到]\s*(\d{1,2}:\d{2})/,
   ],
   // 酒店订单短信
-  // "XX宾馆已预订，入住2026-05-14，退房2026-05-16，标准间含双早，订单H123456"
+  // "XX宾馆已预订,入住2026-05-14,退房2026-05-16,标准间含双早,订单H123456"
   hotel: [
-    /([\u4e00-\u9fa5]+(?:酒店|宾馆|客栈|民宿|饭店|公寓|旅社))[，,已]*(?:已)?预订[成已]?功?.{0,10}入住[日时]?(?:间)?[：:]?\s*(\d{4}-\d{2}-\d{2}).{0,10}(?:退[房住]|离店)[日时]?(?:间)?[：:]?\s*(\d{4}-\d{2}-\d{2}).*?([\u4e00-\u9fa5]+(?:房|间)).*?订单[号编]?\s*([A-Za-z0-9]+)/,
-    /订单[号编]?\s*([A-Za-z0-9]+).*?([\u4e00-\u9fa5]+(?:酒店|宾馆|客栈|民宿|饭店|公寓|旅社)).*?入住[日时]?(?:间)?[：:]?\s*(\d{4}-\d{2}-\d{2}).*?(?:退[房住]|离店)[日时]?(?:间)?[：:]?\s*(\d{4}-\d{2}-\d{2}).*?([\u4e00-\u9fa5]+(?:房|间))/,
+    /([\u4e00-\u9fa5]+(?:酒店|宾馆|客栈|民宿|饭店|公寓|旅社))[,,已]*(?:已)?预订[成已]?功?.{0,10}入住[日时]?(?:间)?[::]?\s*(\d{4}-\d{2}-\d{2}).{0,10}(?:退[房住]|离店)[日时]?(?:间)?[::]?\s*(\d{4}-\d{2}-\d{2}).*?([\u4e00-\u9fa5]+(?:房|间)).*?订单[号编]?\s*([A-Za-z0-9]+)/,
+    /订单[号编]?\s*([A-Za-z0-9]+).*?([\u4e00-\u9fa5]+(?:酒店|宾馆|客栈|民宿|饭店|公寓|旅社)).*?入住[日时]?(?:间)?[::]?\s*(\d{4}-\d{2}-\d{2}).*?(?:退[房住]|离店)[日时]?(?:间)?[::]?\s*(\d{4}-\d{2}-\d{2}).*?([\u4e00-\u9fa5]+(?:房|间))/,
     // 简化: 酒店名 + 入住日期范围内 days
     /([\u4e00-\u9fa5]+(?:酒店|宾馆|客栈|民宿|饭店|公寓|旅社)).*?(\d{4}-\d{2}-\d{2}).*?([\u4e00-\u9fa5]+(?:房|间)).*?订单[号编]?\s*([A-Za-z0-9]+)/,
   ],
 };
 
 /**
- * 获取节点的交通标签（用于时间线展示）
+ * 获取节点的交通标签(用于时间线展示)
  * 徒步节点 → "🥾 徒步"
  * taxi/car → "🚗 包车"
  * bus → "🚌 公交"
@@ -111,12 +111,12 @@ function getNodeTransportLabel(node) {
 }
 
 /**
- * 为某一天的节点生成路线类型列表（逗号分隔），供地图渲染脚本使用
- * 在相邻节点间生成一段路线，根据两个节点的类型决定路线类型：
+ * 为某一天的节点生成路线类型列表(逗号分隔),供地图渲染脚本使用
+ * 在相邻节点间生成一段路线,根据两个节点的类型决定路线类型:
  * - 如果前后都是 hiking 节点 → walking
  * - 包车/出租/自驾之间 → driving
- * - 火车/飞机到达后到下一节点之间 → driving（接驳段）
- * - 火车/飞机出发前的节点 → driving（送站段）
+ * - 火车/飞机到达后到下一节点之间 → driving(接驳段)
+ * - 火车/飞机出发前的节点 → driving(送站段)
  *
  * @returns {object} { routeTypes: string, segments: [{from,to,routeType}] }
  */
@@ -134,7 +134,7 @@ function getRouteTypesForDay(day) {
     if (a.type === 'hiking' && b.type === 'hiking') {
       routeType = 'walking';
     }
-    // 如果任一端是徒步（开始/结束徒步的接驳段）→ driving
+    // 如果任一端是徒步(开始/结束徒步的接驳段)→ driving
     else if (a.type === 'hiking' || b.type === 'hiking') {
       routeType = 'driving';
     }
@@ -143,11 +143,11 @@ function getRouteTypesForDay(day) {
              (b.type === 'train' || b.type === 'flight')) {
       routeType = 'straight';
     }
-    // 从火车/飞机下来后 → driving（接驳）
+    // 从火车/飞机下来后 → driving(接驳)
     else if (a.type === 'train' || a.type === 'flight') {
       routeType = 'driving';
     }
-    // 去往火车/飞机前 → driving（送站）
+    // 去往火车/飞机前 → driving(送站)
     else if (b.type === 'train' || b.type === 'flight') {
       routeType = 'driving';
     }
@@ -177,7 +177,7 @@ function loadConfig() {
   } catch (e) {
     // ignore
   }
-  return { outputDir: '', webBaseUrl: '' };
+  return { outputDir: '', webBaseUrl: 'http://localhost' };
 }
 
 function saveConfig(config) {
@@ -188,7 +188,7 @@ function saveConfig(config) {
 }
 
 function getOutputDir(options) {
-  // 优先级：options.outputDir > hike-select 保存的 > DEFAULT_OUTPUT_DIR
+  // 优先级:options.outputDir > hike-select 保存的 > DEFAULT_OUTPUT_DIR
   if (options && options.outputDir) return options.outputDir;
   const config = loadConfig();
   if (config.outputDir) return config.outputDir;
@@ -236,16 +236,16 @@ function generateTripId(destination, startDate, slug) {
 }
 
 /**
- * 根据行程数据生成计划文件名（基于 trip.title 实际标题）
+ * 根据行程数据生成计划文件名(基于 trip.title 实际标题)
  * 格式: <标题>.md
  * 例: 海坨山姜庄子村小环线出行计划.md、日本·东京→京都→大阪 8天行程规划.md
  */
 function getPlanFilename(trip) {
-  // 从 trip.title 提取（如不存在则 fallback 到默认标题）
+  // 从 trip.title 提取(如不存在则 fallback 到默认标题)
   const h1 = trip.title || `🥾 ${trip.destination || '旅行'}出行计划`;
   const safe = h1
     .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}]/gu, '')  // 去 emoji
-    .replace(/[\\/:*?"<>|]/g, '')           // 仅去非法文件名字符，保留 ·→空格中文等
+    .replace(/[\\/:*?"<>|]/g, '')           // 仅去非法文件名字符,保留 ·→空格中文等
     .trim();
   return safe + '.md';
 }
@@ -269,8 +269,8 @@ function loadState(outputDir) {
 }
 
 /**
- * 加载状态，优先使用配置的输出目录，若无活跃行程则回退到默认目录。
- * 保证 hike-select 切换输出目录后，cmdLog/cmdStatus/cmdToday 仍能找到之前创建的行程。
+ * 加载状态,优先使用配置的输出目录,若无活跃行程则回退到默认目录。
+ * 保证 hike-select 切换输出目录后,cmdLog/cmdStatus/cmdToday 仍能找到之前创建的行程。
  */
 function loadStateWithFallback() {
   const configuredDir = getOutputDir();
@@ -284,7 +284,7 @@ function loadStateWithFallback() {
     if (defaultState.activeTripId && defaultState.trips[defaultState.activeTripId]) {
       return { state: defaultState, dir: DEFAULT_OUTPUT_DIR };
     }
-    // 即使没有活跃行程，也合并两个目录的行程
+    // 即使没有活跃行程,也合并两个目录的行程
     if (Object.keys(defaultState.trips).length > 0) {
       const merged = { ...defaultState };
       for (const [id, trip] of Object.entries(state.trips)) {
@@ -323,7 +323,7 @@ function createTripPlan(destination, options) {
     title: '',
     status: STATUS.COLLECTING,
     destination: destination || '',
-    destinationRegion: '',  // 目的地省市区县，用于地理编码消歧义
+    destinationRegion: '',  // 目的地省市区县,用于地理编码消歧义
     dates: { start: '', end: '' },
     origin: '',
     returnTo: '',
@@ -356,18 +356,18 @@ function createTripPlan(destination, options) {
   };
 }
 
-// ── 命令：hike（纯查询） ─────────────────────────────
+// ── 命令:hike(纯查询) ─────────────────────────────
 
 /**
- * 查询目的地介绍 + 经典徒步路线。纯查询模式，不创建行程、不管理状态。
+ * 查询目的地介绍 + 经典徒步路线。纯查询模式,不创建行程、不管理状态。
  *
- * @param {string} destination - 目的地（必填）
- * @param {string} [activity] - 活动类型（可选，如 "徒步"）
+ * @param {string} destination - 目的地(必填)
+ * @param {string} [activity] - 活动类型(可选,如 "徒步")
  * @returns {object} { queryMode, destination, cultureSearch, routeSearch, outputTemplate }
  */
 function cmdHike(destination, activity) {
   if (!destination || typeof destination !== 'string' || destination.trim().length === 0) {
-    return { error: '请指定目的地，例如：hike 四姑娘山' };
+    return { error: '请指定目的地,例如:hike 四姑娘山' };
   }
 
   const dest = destination.trim();
@@ -376,7 +376,7 @@ function cmdHike(destination, activity) {
     queryMode: true,
     destination: dest,
     activity: activity || null,
-    message: '此结果为查询模式，不接入行程管理。如需创建行程计划，请使用 hike-init。',
+    message: '此结果为查询模式,不接入行程管理。如需创建行程计划,请使用 hike-init。',
 
     // 文化信息搜索任务
     cultureSearch: {
@@ -401,42 +401,42 @@ function cmdHike(destination, activity) {
     outputTemplate: {
       culture: {
         header: '## 行程详情',
-        sections: '按 3-5 个类别输出（地理风貌/历史渊源/人文与诗词/遗存遗迹/美食特产等），每类 2-4 句话，标注信息来源',
+        sections: '按 3-5 个类别输出(地理风貌/历史渊源/人文与诗词/遗存遗迹/美食特产等),每类 2-4 句话,标注信息来源',
       },
       routes: {
         header: '## 徒步路线详情',
         fields: ['路线名', '距离', '爬升', '下降', '预计用时', '路线类型', '关键节点', '⚠️ 提示'],
       },
-      footer: '> 📌 此结果为查询模式，不接入行程管理。如需创建行程计划，请使用 `hike-init`。',
+      footer: '> 📌 此结果为查询模式,不接入行程管理。如需创建行程计划,请使用 `hike-init`。',
     },
   };
 }
 
-// ── 命令：hike-init ───────────────────────────────────
+// ── 命令:hike-init ───────────────────────────────────
 
 /**
- * 初始化行程，日期/目的地/活动直接从参数解析。
- * 新格式：hike-init <startDate> <destination> <activity>
- * 示例：hike-init 2026-06-01 古蜀道 徒步+文化探访
+ * 初始化行程,日期/目的地/活动直接从参数解析。
+ * 新格式:hike-init <startDate> <destination> <activity>
+ * 示例:hike-init 2026-06-01 古蜀道 徒步+文化探访
  *
  * 向后兼容旧的 cmdInit(destination, options) 调用风格。
  *
- * @param {string} startDate - 出发日期 YYYY-MM-DD（必填）
- * @param {string} destination - 目的地（必填）
- * @param {string} activity - 活动描述，如 "徒步+文化探访"（必填）
+ * @param {string} startDate - 出发日期 YYYY-MM-DD(必填)
+ * @param {string} destination - 目的地(必填)
+ * @param {string} activity - 活动描述,如 "徒步+文化探访"(必填)
  * @param {object} [options] - { outputDir, confirmed }
- * @returns {object} { tripId, status, collectPrompt } — collectPrompt 仅含缺失的补充问题
+ * @returns {object} { tripId, status, collectPrompt } - collectPrompt 仅含缺失的补充问题
  */
 function cmdInit(startDate, destination, activity, options) {
-  // ── 向后兼容：旧格式 cmdInit(destination, options) ──
-  // 情况1：destination 是 object → cmdInit(dest, {outputDir:'...'})
-  // 情况2：destination 为 undefined → cmdInit('华山') 只传了1个参数
+  // ── 向后兼容:旧格式 cmdInit(destination, options) ──
+  // 情况1:destination 是 object → cmdInit(dest, {outputDir:'...'})
+  // 情况2:destination 为 undefined → cmdInit('华山') 只传了1个参数
   if (destination === undefined || typeof destination === 'object') {
     const oldDest = startDate || '';
     const oldOpts = (typeof destination === 'object') ? destination : {};
     return _cmdInitLegacy(oldDest, oldOpts);
   }
-  // 情况3：传了2个非object参数，但第一个不像日期 → 旧格式
+  // 情况3:传了2个非object参数,但第一个不像日期 → 旧格式
   if (activity === undefined && !/^\d{4}-\d{2}-\d{2}$/.test(startDate || '')) {
     return _cmdInitLegacy(startDate || '', {});
   }
@@ -446,10 +446,10 @@ function cmdInit(startDate, destination, activity, options) {
   let state = loadState(outputDir);
 
   // ── 目的地必填校验 ──
-  // 未提供目的地时不初始化，等待用户明确目的地
+  // 未提供目的地时不初始化,等待用户明确目的地
   if (!destination || !destination.trim()) {
     return {
-      error: '请先明确目的地，例如：hike-init 2026-06-01 大觉寺 徒步',
+      error: '请先明确目的地,例如:hike-init 2026-06-01 大觉寺 徒步',
       needsDestination: true,
     };
   }
@@ -459,27 +459,27 @@ function cmdInit(startDate, destination, activity, options) {
     const activeTrip = state.trips[state.activeTripId];
     if (activeTrip && activeTrip.status !== STATUS.COMPLETED) {
       return {
-        error: `已有进行中的行程「${activeTrip.destination}」（${activeTrip.tripId}），请先完成或取消`,
+        error: `已有进行中的行程「${activeTrip.destination}」(${activeTrip.tripId}),请先完成或取消`,
         activeTripId: activeTrip.tripId,
       };
     }
   }
 
   // ── 持久化同意确认 ──
-  // 首次调用（无 confirmed）返回同意请求；用户确认后传 { confirmed: true } 继续
+  // 首次调用(无 confirmed)返回同意请求;用户确认后传 { confirmed: true } 继续
   if (!opts.confirmed) {
     return {
       needsConsent: true,
       consentType: 'output_dir',
       outputDir: outputDir,
-      message: `行程计划将保存到 ${outputDir}。同一服务器的其他用户可能可以查看这些数据。是否继续？`,
+      message: `行程计划将保存到 ${outputDir}。同一服务器的其他用户可能可以查看这些数据。是否继续?`,
     };
   }
 
   const trip = createTripPlan(destination, opts);
   trip.tripId = generateTripId(destination, startDate);
   trip.dates.start = startDate;
-  trip.dates.end = startDate; // 默认单日，后续通过 cmdSetRequirements 修正
+  trip.dates.end = startDate; // 默认单日,后续通过 cmdSetRequirements 修正
   // 文件名格式: 🥾 目的地·活动出行计划
   if (activity && activity.trim()) {
     const actTrimmed = activity.trim();
@@ -505,31 +505,31 @@ function cmdInit(startDate, destination, activity, options) {
   state.activeTripId = trip.tripId;
   saveState(state, outputDir);
 
-  // ── 构建精简的补问清单（只问还缺的） ──
+  // ── 构建精简的补问清单(只问还缺的) ──
   const missing = [];
   const hasAll = !!activity && !!destination && !!startDate;
 
   if (!activity) {
-    missing.push({ id: 'activity', label: '活动类型（如 徒步+文化探访）', required: true });
+    missing.push({ id: 'activity', label: '活动类型(如 徒步+文化探访)', required: true });
   }
   if (!destination) {
-    missing.push({ id: 'destination', label: '目的地（如 古蜀道）', required: true });
+    missing.push({ id: 'destination', label: '目的地(如 古蜀道)', required: true });
   }
   if (!startDate) {
-    missing.push({ id: 'startDate', label: '出发日期（如 2026-06-01）', required: true });
+    missing.push({ id: 'startDate', label: '出发日期(如 2026-06-01)', required: true });
   }
 
-  // 即便三个必填项都有，也补问一些可选信息
+  // 即便三个必填项都有,也补问一些可选信息
   const optionalQuestions = [
-    { id: 'endDate', label: '返回日期（单日可不填）', required: false },
-    { id: 'destinationRegion', label: '目的地在哪个省/市/县？（如 北京市延庆区，用于精确地图定位）', required: false },
-    { id: 'origin', label: '从哪个城市出发？', required: false },
-    { id: 'returnTo', label: '回到哪个城市？（同出发可不填）', required: false },
-    { id: 'participants', label: '几个人？', required: false, default: '1' },
-    { id: 'transport', label: '交通偏好（火车/飞机/自驾）', required: false },
-    { id: 'accommodation', label: '住宿偏好（酒店类型/预算）', required: false },
-    { id: 'fitness', label: '体力水平（轻松/适中/高强度）', required: false },
-    { id: 'gpxFile', label: '如有 GPX/KML 轨迹文件或两步路链接，请提供，可大幅提高路线精度', required: false },
+    { id: 'endDate', label: '返回日期(单日可不填)', required: false },
+    { id: 'destinationRegion', label: '目的地在哪个省/市/县?(如 北京市延庆区,用于精确地图定位)', required: false },
+    { id: 'origin', label: '从哪个城市出发?', required: false },
+    { id: 'returnTo', label: '回到哪个城市?(同出发可不填)', required: false },
+    { id: 'participants', label: '几个人?', required: false, default: '1' },
+    { id: 'transport', label: '交通偏好(火车/飞机/自驾)', required: false },
+    { id: 'accommodation', label: '住宿偏好(酒店类型/预算)', required: false },
+    { id: 'fitness', label: '体力水平(轻松/适中/高强度)', required: false },
+    { id: 'gpxFile', label: '如有 GPX/KML 轨迹文件或两步路链接,请提供,可大幅提高路线精度', required: false },
   ];
 
   if (missing.length > 0) {
@@ -537,7 +537,7 @@ function cmdInit(startDate, destination, activity, options) {
       tripId: trip.tripId,
       status: trip.status,
       collectPrompt: {
-        message: `好的！开始规划「${destination || '(待定)'}」的行程。以下信息还需补充：`,
+        message: `好的!开始规划「${destination || '(待定)'}」的行程。以下信息还需补充:`,
         questions: [...missing, ...optionalQuestions],
       },
     };
@@ -555,16 +555,16 @@ function cmdInit(startDate, destination, activity, options) {
     },
     collectPrompt: {
       message: hasAll
-        ? `「${destination} · ${activity}」行程已创建（${startDate}）。如需补充细节：`
-        : `还需以下信息：`,
+        ? `「${destination} · ${activity}」行程已创建(${startDate})。如需补充细节:`
+        : `还需以下信息:`,
       questions: hasAll ? optionalQuestions : [...missing, ...optionalQuestions],
     },
-    amapNotice: '🗺️  行程站点名称将通过网络发送给高德地图（Amap）API 以生成地图链接。',
+    amapNotice: '🗺️  行程站点名称将通过网络发送给高德地图(Amap)API 以生成地图链接。',
     nextSteps: [
-      'search_routes: 搜索徒步路线（两步路 https://www.2bulu.com/track + 小红书 + B站）',
-      'search_transport: 查询大交通（12306/flyai）',
-      'search_hotels: 查询酒店（flyai/web_search）',
-      'search_culture: 收集人文信息（Wikipedia/xiaohongshu）',
+      'search_routes: 搜索徒步路线(两步路 https://www.2bulu.com/track + 小红书 + B站)',
+      'search_transport: 查询大交通(12306/flyai)',
+      'search_hotels: 查询酒店(flyai/web_search)',
+      'search_culture: 收集人文信息(Wikipedia/xiaohongshu)',
       'generate_plan: 生成完整行程计划',
       'render_maps: 渲染行程地图',
     ],
@@ -572,17 +572,17 @@ function cmdInit(startDate, destination, activity, options) {
 }
 
 /**
- * 旧格式兼容：cmdInit(destination, options)
+ * 旧格式兼容:cmdInit(destination, options)
  */
 function _cmdInitLegacy(destination, options) {
   const outputDir = getOutputDir(options);
   let state = loadState(outputDir);
 
   // ── 目的地必填校验 ──
-  // 未提供目的地时不初始化，等待用户明确目的地
+  // 未提供目的地时不初始化,等待用户明确目的地
   if (!destination || !destination.trim()) {
     return {
-      error: '请先明确目的地，例如：hike-init 大觉寺',
+      error: '请先明确目的地,例如:hike-init 大觉寺',
       needsDestination: true,
     };
   }
@@ -591,7 +591,7 @@ function _cmdInitLegacy(destination, options) {
     const activeTrip = state.trips[state.activeTripId];
     if (activeTrip && activeTrip.status !== STATUS.COMPLETED) {
       return {
-        error: `已有进行中的行程「${activeTrip.destination}」（${activeTrip.tripId}），请先完成或取消`,
+        error: `已有进行中的行程「${activeTrip.destination}」(${activeTrip.tripId}),请先完成或取消`,
         activeTripId: activeTrip.tripId,
       };
     }
@@ -603,7 +603,7 @@ function _cmdInitLegacy(destination, options) {
       needsConsent: true,
       consentType: 'output_dir',
       outputDir: outputDir,
-      message: `行程计划将保存到 ${outputDir}。同一服务器的其他用户可能可以查看这些数据。是否继续？`,
+      message: `行程计划将保存到 ${outputDir}。同一服务器的其他用户可能可以查看这些数据。是否继续?`,
     };
   }
 
@@ -619,25 +619,25 @@ function _cmdInitLegacy(destination, options) {
     tripId: trip.tripId,
     status: trip.status,
     collectPrompt: {
-      message: `好的！开始规划「${destination}」的徒步行程。请告诉我以下信息：`,
+      message: `好的!开始规划「${destination}」的徒步行程。请告诉我以下信息:`,
       questions: [
-        { id: 'startDate', label: '出发日期（如 2026-05-13）', required: true },
-        { id: 'endDate', label: '返回日期（单程可不填）', required: false },
-        { id: 'origin', label: '从哪个城市出发？', required: true },
-        { id: 'destinationRegion', label: '目的地在哪个省/市/县？（如 北京市延庆区，用于精确地图定位）', required: false },
-        { id: 'returnTo', label: '回到哪个城市？（同出发可不填）', required: false },
-        { id: 'participants', label: '几个人？', required: false, default: '1' },
-        { id: 'transport', label: '交通偏好（火车/飞机/自驾）', required: false },
-        { id: 'accommodation', label: '住宿偏好（酒店类型/预算）', required: false },
-        { id: 'fitness', label: '体力水平（轻松/适中/高强度）', required: false },
-        { id: 'gpxFile', label: '如有 GPX/KML 轨迹文件或两步路链接，请提供，可大幅提高路线精度', required: false },
-        { id: 'interests', label: '兴趣方向（历史文化/自然风光/美食等）', required: false },
+        { id: 'startDate', label: '出发日期(如 2026-05-13)', required: true },
+        { id: 'endDate', label: '返回日期(单程可不填)', required: false },
+        { id: 'origin', label: '从哪个城市出发?', required: true },
+        { id: 'destinationRegion', label: '目的地在哪个省/市/县?(如 北京市延庆区,用于精确地图定位)', required: false },
+        { id: 'returnTo', label: '回到哪个城市?(同出发可不填)', required: false },
+        { id: 'participants', label: '几个人?', required: false, default: '1' },
+        { id: 'transport', label: '交通偏好(火车/飞机/自驾)', required: false },
+        { id: 'accommodation', label: '住宿偏好(酒店类型/预算)', required: false },
+        { id: 'fitness', label: '体力水平(轻松/适中/高强度)', required: false },
+        { id: 'gpxFile', label: '如有 GPX/KML 轨迹文件或两步路链接,请提供,可大幅提高路线精度', required: false },
+        { id: 'interests', label: '兴趣方向(历史文化/自然风光/美食等)', required: false },
       ],
     },
   };
 }
 
-// ── 命令：设置需求 ────────────────────────────────────
+// ── 命令:设置需求 ────────────────────────────────────
 
 /**
  * 设置收集到的需求。Agent 交互完成后调用。
@@ -648,7 +648,7 @@ function cmdSetRequirements(requirements) {
   let state = loadState(outputDir);
   const tripId = requirements.tripId || state.activeTripId;
   if (!tripId || !state.trips[tripId]) {
-    return { error: '没有活动的行程，请先 hike-init' };
+    return { error: '没有活动的行程,请先 hike-init' };
   }
 
   const trip = state.trips[tripId];
@@ -673,16 +673,16 @@ function cmdSetRequirements(requirements) {
   if (r.fitness) trip.preferences.fitness = r.fitness;
   if (r.interests) {
     trip.preferences.interests = typeof r.interests === 'string'
-      ? r.interests.split(/[,，]/).map(s => s.trim())
+      ? r.interests.split(/[,,]/).map(s => s.trim())
       : r.interests;
   }
-  // 活动类型（hike-init 新参数兼容）
+  // 活动类型(hike-init 新参数兼容)
   if (r.activity) {
     const activityParts = r.activity.split(/[+、/]/).map(s => s.trim()).filter(Boolean);
     trip.preferences.interests = [...new Set([...trip.preferences.interests, ...activityParts])];
   }
 
-  // 重新生成 tripId（用真实日期）
+  // 重新生成 tripId(用真实日期)
   if (r.startDate) {
     const newTripId = generateTripId(trip.destination, r.startDate);
     if (newTripId !== tripId) {
@@ -697,7 +697,7 @@ function cmdSetRequirements(requirements) {
   if (trip.dates.start && trip.dates.end) {
     const numDays = dateDiff(trip.dates.start, trip.dates.end) + 1;
     // Day 0 = 抵达日, Day 1..N-1 = 活动日, Day N = 返程日
-    // 如果只有1天，就是当天往返
+    // 如果只有1天,就是当天往返
     trip.days = [];
     for (let i = 0; i < numDays; i++) {
       const d = addDays(trip.dates.start, i);
@@ -723,18 +723,18 @@ function cmdSetRequirements(requirements) {
     status: trip.status,
     summary: {
       destination: trip.destination,
-      dates: `${trip.dates.start} ~ ${trip.dates.end}（${trip.days.length}天）`,
+      dates: `${trip.dates.start} ~ ${trip.dates.end}(${trip.days.length}天)`,
       origin: trip.origin,
       returnTo: trip.returnTo,
       participants: trip.participants,
       preferences: trip.preferences,
     },
-    amapNotice: '🗺️  行程站点名称将通过网络发送给高德地图（Amap）API 以生成地图链接。',
+    amapNotice: '🗺️  行程站点名称将通过网络发送给高德地图(Amap)API 以生成地图链接。',
     nextSteps: [
-      'search_routes: 搜索徒步路线（两步路 https://www.2bulu.com/track + 小红书 + B站）',
-      'search_transport: 查询大交通（12306/flyai）',
-      'search_hotels: 查询酒店（flyai/web_search）',
-      'search_culture: 收集人文信息（Wikipedia/xiaohongshu）',
+      'search_routes: 搜索徒步路线(两步路 https://www.2bulu.com/track + 小红书 + B站)',
+      'search_transport: 查询大交通(12306/flyai)',
+      'search_hotels: 查询酒店(flyai/web_search)',
+      'search_culture: 收集人文信息(Wikipedia/xiaohongshu)',
       'generate_plan: 生成完整行程计划',
       'render_maps: 渲染行程地图',
     ],
@@ -750,7 +750,7 @@ function addDays(dateStr, n) {
   return `${y}-${m}-${day}`;
 }
 
-// ── 命令：设置徒步路线 ────────────────────────────────
+// ── 命令:设置徒步路线 ────────────────────────────────
 
 function cmdSetHikingRoutes(routes, tripId) {
   const { state } = loadStateWithFallback();
@@ -759,7 +759,7 @@ function cmdSetHikingRoutes(routes, tripId) {
 
   trip.hikingRoutes = routes.map(r => ({
     name: r.name || '未命名路线',
-    // 从 GPX/KML 提取的 GPS 坐标（最高精度数据源，用于地图渲染）
+    // 从 GPX/KML 提取的 GPS 坐标(最高精度数据源,用于地图渲染)
     waypoints: r.waypoints || [],  // [{name: '起点', lng: 115.xxx, lat: 40.xxx}, ...]
     distance: r.distance || null,
     distanceUnit: r.distanceUnit || 'km',
@@ -771,8 +771,8 @@ function cmdSetHikingRoutes(routes, tripId) {
     routeClass: r.routeClass || '',     // 路线分类: 穿越(起终点不同)/环线(起点=终点,路径不重复)/往返(起点=终点,原路返回)
     keyNodes: r.keyNodes || [],
     gpxSource: r.gpxSource || '',
-    gpxFilePath: r.gpxFilePath || '',       // GPX/KML 文件相对路径（gpx/xxx.gpx）
-    trackMapPath: r.trackMapPath || '',     // 轨迹地图 HTML 相对路径（gpx/xxx_轨迹地图.html）
+    gpxFilePath: r.gpxFilePath || '',       // GPX/KML 文件相对路径(gpx/xxx.gpx)
+    trackMapPath: r.trackMapPath || '',     // 轨迹地图 HTML 相对路径(gpx/xxx_轨迹地图.html)
     tips: r.tips || '',
     dayIndex: r.dayIndex || 0,
   }));
@@ -807,7 +807,7 @@ function cmdSetHikingRoutes(routes, tripId) {
 // ── GPX/KML 文件保存 + 轨迹地图生成 ──────────────────
 
 /**
- * 保存 GPX/KML 文件到行程 gpx 目录，并生成轨迹地图 HTML
+ * 保存 GPX/KML 文件到行程 gpx 目录,并生成轨迹地图 HTML
  * @param {object} trip - 行程对象
  * @param {string} sourcePath - 上传的 GPX/KML 文件路径
  * @returns {{ gpxPath: string, trackMapPath: string, error: string|null }}
@@ -821,7 +821,7 @@ function saveGpxFile(trip, sourcePath) {
     if (fs.existsSync(inboundCandidate)) {
       sourcePath = inboundCandidate;
     } else {
-      return { gpxPath: null, trackMapPath: null, error: `文件不存在: ${resolvedPath}。请确认文件路径是否正确。如果文件是通过 webchat 上传的，请使用绝对路径 ~/.openclaw/media/inbound/<文件名>` };
+      return { gpxPath: null, trackMapPath: null, error: `文件不存在: ${resolvedPath}。请确认文件路径是否正确。如果文件是通过 webchat 上传的,请使用绝对路径 ~/.openclaw/media/inbound/<文件名>` };
     }
   }
 
@@ -843,7 +843,7 @@ function saveGpxFile(trip, sourcePath) {
     return { gpxPath: `gpx/${baseName}${ext}`, trackMapPath: null, error: `轨迹地图生成失败: ${e.message}` };
   }
 
-  // 返回 gpx 目录内的相对路径（用于行程计划链接）
+  // 返回 gpx 目录内的相对路径(用于行程计划链接)
   return { gpxPath: `gpx/${baseName}${ext}`, trackMapPath: `gpx/${baseName}_轨迹地图.html`, error: null };
 }
 
@@ -878,7 +878,7 @@ function saveMediaFile(trip, sourcePath) {
   return { mediaPath: `media/${baseName}${ext}`, error: null };
 }
 
-// ── 命令：设置交通 ────────────────────────────────────
+// ── 命令:设置交通 ────────────────────────────────────
 
 function cmdSetDayNode(dayIndex, node, tripId) {
   const { state } = loadStateWithFallback();
@@ -915,7 +915,7 @@ function cmdSetDayWeather(dayIndex, weather, tripId) {
   return { tripId: trip.tripId, dayIndex, weather };
 }
 
-// ── 命令：设置文化信息 ────────────────────────────────
+// ── 命令:设置文化信息 ────────────────────────────────
 
 function cmdSetCulture(culture, tripId) {
   const { state } = loadStateWithFallback();
@@ -929,7 +929,7 @@ function cmdSetCulture(culture, tripId) {
   return { tripId: trip.tripId, cultureKeys: Object.keys(trip.culture) };
 }
 
-// ── 命令：设置装备 + 待办 ──────────────────────────────
+// ── 命令:设置装备 + 待办 ──────────────────────────────
 
 function cmdSetEquipment(equipment, tripId) {
   const { state } = loadStateWithFallback();
@@ -948,7 +948,7 @@ function cmdSetTodos(todos, tripId) {
   const trip = getTrip(state, tripId);
   if (!trip) return { error: '没有活动的行程' };
 
-  // 兼容旧格式（纯字符串）与新格式（{text, done} 对象）
+  // 兼容旧格式(纯字符串)与新格式({text, done} 对象)
   trip.todos = todos.map(t => typeof t === 'string' ? { text: t, done: false } : t);
   trip.updatedAt = new Date().toISOString();
   saveState(state, trip.outputDir);
@@ -956,13 +956,13 @@ function cmdSetTodos(todos, tripId) {
   return { tripId: trip.tripId, todos: trip.todos };
 }
 
-// ── 命令：标记待办完成 ──────────────────────────────
+// ── 命令:标记待办完成 ──────────────────────────────
 
 /**
  * 通过编号快速标记待办为完成。
  * 用户输入 "TODO 1 done" / "todo 2 done" 即可完成对应编号的待办。
  *
- * @param {number} todoNumber - 待办编号（1-based）
+ * @param {number} todoNumber - 待办编号(1-based)
  * @param {string} [tripId] - 行程 ID
  * @returns {object} { tripId, todo, message }
  */
@@ -973,7 +973,7 @@ function cmdTodoDone(todoNumber, tripId) {
 
   const index = todoNumber - 1;
   if (index < 0 || index >= trip.todos.length) {
-    return { error: `待办编号 ${todoNumber} 无效（共 ${trip.todos.length} 项）` };
+    return { error: `待办编号 ${todoNumber} 无效(共 ${trip.todos.length} 项)` };
   }
 
   const todo = trip.todos[index];
@@ -990,7 +990,7 @@ function cmdTodoDone(todoNumber, tripId) {
   return { tripId: trip.tripId, todoIndex: index + 1, text, message: `✅ TODO ${index + 1} 已完成: ${text}` };
 }
 
-// ── 命令：设置地图链接 ────────────────────────────────
+// ── 命令:设置地图链接 ────────────────────────────────
 
 function cmdSetMapUrl(dayIndex, mapUrl, tripId) {
   const { state } = loadStateWithFallback();
@@ -1008,7 +1008,7 @@ function cmdSetMapUrl(dayIndex, mapUrl, tripId) {
   return { tripId: trip.tripId, dayIndex, mapUrl };
 }
 
-// ── 命令：确认计划 ────────────────────────────────────
+// ── 命令:确认计划 ────────────────────────────────────
 
 function cmdConfirm(tripId) {
   const { state } = loadStateWithFallback();
@@ -1022,14 +1022,14 @@ function cmdConfirm(tripId) {
   return { tripId: trip.tripId, status: trip.status };
 }
 
-// ── 命令：出发（激活） ────────────────────────────────
+// ── 命令:出发(激活) ────────────────────────────────
 
 function cmdActivate(tripId) {
   const { state } = loadStateWithFallback();
   const trip = getTrip(state, tripId);
   if (!trip) return { error: '没有活动的行程' };
   if (trip.status !== STATUS.CONFIRMED) {
-    return { error: `行程状态「${trip.status}」无法激活，需要先确认` };
+    return { error: `行程状态「${trip.status}」无法激活,需要先确认` };
   }
 
   trip.status = STATUS.ACTIVE;
@@ -1039,7 +1039,7 @@ function cmdActivate(tripId) {
   return { tripId: trip.tripId, status: trip.status };
 }
 
-// ── 命令：hike-status ─────────────────────────────────
+// ── 命令:hike-status ─────────────────────────────────
 
 function cmdStatus(tripId) {
   const { state } = loadStateWithFallback();
@@ -1118,7 +1118,7 @@ function cmdStatus(tripId) {
   };
 }
 
-// ── 命令：hike-today ──────────────────────────────────
+// ── 命令:hike-today ──────────────────────────────────
 
 function cmdToday(dateStr) {
   const { state } = loadStateWithFallback();
@@ -1129,12 +1129,12 @@ function cmdToday(dateStr) {
   const day = trip.days.find(d => d.date === targetDate);
   if (!day) {
     return {
-      error: `${targetDate} 不在行程范围内（${trip.dates.start} ~ ${trip.dates.end}）`,
-      availableDays: trip.days.map(d => `${d.date}（${d.dayOfWeek}）`),
+      error: `${targetDate} 不在行程范围内(${trip.dates.start} ~ ${trip.dates.end})`,
+      availableDays: trip.days.map(d => `${d.date}(${d.dayOfWeek})`),
     };
   }
 
-  // 渲染当天时间线（含计划 vs 实际对比）
+  // 渲染当天时间线(含计划 vs 实际对比)
   const timeline = day.nodes.map(n => ({
     time: n.time,
     type: n.type,
@@ -1142,7 +1142,7 @@ function cmdToday(dateStr) {
     detail: n.detail,
     cost: n.cost,
     remark: n.remark,
-    // 实际数据（如有）
+    // 实际数据(如有)
     actualStatus: n.actualStatus || null,
     actualIcon: n.actualStatusIcon || null,
     actualTime: n.actualTime || null,
@@ -1183,7 +1183,7 @@ function cmdToday(dateStr) {
 // ── 订单短信解析 ────────────────────────────────
 
 /**
- * 解析订单确认短信，提取结构化数据
+ * 解析订单确认短信,提取结构化数据
  * @param {string} text - SMS 文本
  * @returns {object|null} { type, data }
  */
@@ -1198,7 +1198,7 @@ function parseOrderSMS(text) {
         // 统一提取顺序: carNum, fromSta, fromTime, toSta, toTime, seat, orderId
         let carNum, fromSta, fromTime, toSta, toTime, seat, orderId;
         if (pattern.source.startsWith('订单\\s*')) {
-          // 模式1（新）: 订单+车次号 直接格式 → carNum, fromSta, fromTime, toSta, toTime, seat, orderId
+          // 模式1(新): 订单+车次号 直接格式 → carNum, fromSta, fromTime, toSta, toTime, seat, orderId
           [carNum, fromSta, fromTime, toSta, toTime, seat, orderId] = groups;
         } else if (pattern.source.startsWith('车次')) {
           // 模式2: 车次 + 出发站时间-到达站时间 + 座位 + 订单号
@@ -1211,7 +1211,7 @@ function parseOrderSMS(text) {
         fromSta = fromSta.replace(/站$/, '站').replace(/站站/, '站');
         if (!fromSta.endsWith('站')) fromSta += '站';
         toSta = toSta.replace(/站$/, '站').replace(/站站/, '站');
-        // 有些站名本身包含"站"字但不以站结尾（如 剑门关站），规范化
+        // 有些站名本身包含"站"字但不以站结尾(如 剑门关站),规范化
         if (!toSta.endsWith('站') && !/(?:东|南|西|北|关|桥|口|岭)$/.test(toSta)) toSta += '站';
         return {
           type: 'train',
@@ -1262,7 +1262,7 @@ function parseOrderSMS(text) {
           [hotelName, checkIn, roomType, orderId] = groups;
           checkOut = '';
         }
-        // 从原始短信中推断是否含早，不保留 raw 文本
+        // 从原始短信中推断是否含早,不保留 raw 文本
         const hasBreakfast = /含.*[早双]/.test(text);
         return {
           type: 'hotel',
@@ -1288,7 +1288,7 @@ function applySMSToTrip(trip, sms) {
   const result = { applied: false, detail: '', type };
 
   if (type === 'train') {
-    // 匹配日期：根据出发时间和行程日期匹配 day
+    // 匹配日期:根据出发时间和行程日期匹配 day
     const trainDate = guessDateFromTrip(trip, data.fromTime, data.toTime);
     let matchedDay = null;
     if (trainDate) {
@@ -1299,17 +1299,17 @@ function applySMSToTrip(trip, sms) {
       matchedDay = trip.days.find(d => d.nodes.some(n => n.type === 'train'));
     }
 
-    // 构建节点数据（不覆盖已有 cost）
+    // 构建节点数据(不覆盖已有 cost)
     const nodeData = {
       time: `${data.fromTime}-${data.toTime}`,
       type: 'train',
       name: `${data.fromSta}→${data.toSta}`,
       detail: data.carNum,
-      remark: `${data.seat}，订单${data.orderId}`,
+      remark: `${data.seat},订单${data.orderId}`,
     };
 
     if (matchedDay) {
-      // 查找已存在的同类型节点，支持覆盖
+      // 查找已存在的同类型节点,支持覆盖
       const existingIdx = matchedDay.nodes.findIndex(
         n => n.type === 'train' && (n.detail === data.carNum || n.name.includes(data.fromSta))
       );
@@ -1326,14 +1326,14 @@ function applySMSToTrip(trip, sms) {
       result.matchedDay = matchedDay.date;
       matchedDay.dayCost = matchedDay.nodes.reduce((s, n) => s + (n.cost || 0), 0);
     } else {
-      // 无匹配日，提示用户指定
+      // 无匹配日,提示用户指定
       result.applied = false;
-      result.detail = `无法匹配行程日期，请用 hike-log "交通 D${trip.days[0]?.date || ''}" 指定日期后再试`;
+      result.detail = `无法匹配行程日期,请用 hike-log "交通 D${trip.days[0]?.date || ''}" 指定日期后再试`;
       return result;
     }
 
     result.applied = true;
-    result.detail = `${result.action === 'updated' ? '已更新' : '已添加'}火车票：${data.carNum} ${data.fromSta}${data.fromTime}→${data.toSta}${data.toTime}，${data.seat}`;
+    result.detail = `${result.action === 'updated' ? '已更新' : '已添加'}火车票:${data.carNum} ${data.fromSta}${data.fromTime}→${data.toSta}${data.toTime},${data.seat}`;
     result.node = nodeData;
 
   } else if (type === 'flight') {
@@ -1347,7 +1347,7 @@ function applySMSToTrip(trip, sms) {
       type: 'flight',
       name: `${data.fromCity}→${data.toCity}`,
       detail: data.flightNum,
-      remark: `${data.seat}，订单${data.orderId}`,
+      remark: `${data.seat},订单${data.orderId}`,
     };
 
     if (matchedDay) {
@@ -1365,16 +1365,16 @@ function applySMSToTrip(trip, sms) {
       result.matchedDay = matchedDay.date;
     } else {
       result.applied = false;
-      result.detail = `无法匹配行程日期 ${data.date}，请检查行程日期范围`;
+      result.detail = `无法匹配行程日期 ${data.date},请检查行程日期范围`;
       return result;
     }
 
     result.applied = true;
-    result.detail = `${result.action === 'updated' ? '已更新' : '已添加'}机票：${data.flightNum} ${data.fromCity}→${data.toCity} ${data.date} ${data.fromTime}-${data.toTime}，${data.seat}`;
+    result.detail = `${result.action === 'updated' ? '已更新' : '已添加'}机票:${data.flightNum} ${data.fromCity}→${data.toCity} ${data.date} ${data.fromTime}-${data.toTime},${data.seat}`;
     result.node = nodeData;
 
   } else if (type === 'hotel') {
-    // 酒店匹配：查找入住日期范围内的 day
+    // 酒店匹配:查找入住日期范围内的 day
     const hotelStartDate = data.checkIn;
     let matchedDays = [];
     if (hotelStartDate && data.checkOut) {
@@ -1387,7 +1387,7 @@ function applySMSToTrip(trip, sms) {
 
     if (matchedDays.length === 0) {
       result.applied = false;
-      result.detail = `无法匹配行程日期 ${hotelStartDate || '(未识别)'}，请检查行程日期范围`;
+      result.detail = `无法匹配行程日期 ${hotelStartDate || '(未识别)'},请检查行程日期范围`;
       return result;
     }
 
@@ -1399,7 +1399,7 @@ function applySMSToTrip(trip, sms) {
         type: 'hotel',
         name: data.hotelName,
         detail: `${data.roomType}`,
-        remark: `${i === 0 ? `入住${data.checkIn}，` : ''}退房${data.checkOut}，订单${data.orderId}${i > 0 ? '（续住）' : ''}${data.hasBreakfast ? '，含早' : ''}`,
+        remark: `${i === 0 ? `入住${data.checkIn},` : ''}退房${data.checkOut},订单${data.orderId}${i > 0 ? '(续住)' : ''}${data.hasBreakfast ? ',含早' : ''}`,
       };
 
       const existingIdx = day.nodes.findIndex(
@@ -1415,7 +1415,7 @@ function applySMSToTrip(trip, sms) {
 
     result.applied = true;
     result.action = 'added';
-    result.detail = `已添加酒店：${data.hotelName} ${data.roomType}，${data.checkIn} 入住${nights > 1 ? `，共${nights}晚` : ''}`;
+    result.detail = `已添加酒店:${data.hotelName} ${data.roomType},${data.checkIn} 入住${nights > 1 ? `,共${nights}晚` : ''}`;
     result.matchedDayIndex = trip.days.indexOf(matchedDays[0]);
     result.matchedDay = matchedDays[0].date;
   }
@@ -1433,7 +1433,7 @@ function applySMSToTrip(trip, sms) {
 }
 
 function guessDateFromTrip(trip, fromTime, toTime) {
-  // 根据时间判断：如果出发时间在上午，通常是行程首日
+  // 根据时间判断:如果出发时间在上午,通常是行程首日
   const hour = parseInt(fromTime);
   // 找行程范围内第一个日期
   if (hour <= 12) {
@@ -1448,7 +1448,7 @@ function guessDateFromTrip(trip, fromTime, toTime) {
 // ── 计划 vs 实际对比 ─────────────────────────────
 
 /**
- * 比较实际数据与计划，产生偏差记录
+ * 比较实际数据与计划,产生偏差记录
  * @param {object} trip - TripPlan
  * @param {object} actual - { dayIndex, nodeIndex, actualTime, actualCost, actualRemark }
  * @returns {object} { alert, deviations }
@@ -1475,7 +1475,7 @@ function compareActualVsPlan(trip, actual) {
           planned: node.time,
           actual: actual.actualTime,
           diffMinutes: diff,
-          diffText: `${diff > 0 ? '+' : ''}${diff} 分钟（${diff > 0 ? '延迟' : '提前'}）`,
+          diffText: `${diff > 0 ? '+' : ''}${diff} 分钟(${diff > 0 ? '延迟' : '提前'})`,
           alert: true,
           threshold: DEVIATION_THRESHOLDS.timeMinutes,
         });
@@ -1493,7 +1493,7 @@ function compareActualVsPlan(trip, actual) {
         planned: node.cost,
         actual: actual.actualCost,
         diffYuan: diff,
-        diffText: `${diff > 0 ? '+' : ''}¥${diff}（${diff > 0 ? '超支' : '节约'}）`,
+        diffText: `${diff > 0 ? '+' : ''}¥${diff}(${diff > 0 ? '超支' : '节约'})`,
         alert: true,
         threshold: DEVIATION_THRESHOLDS.costYuan,
       });
@@ -1521,13 +1521,13 @@ function compareActualVsPlan(trip, actual) {
     alert: hasAlert,
     deviations,
     message: hasAlert
-      ? `⚠️ 偏差提醒：${deviations.filter(d => d.alert).map(d => d.diffText).join('；')}`
-      : (deviations.length > 0 ? '已记录差异（未超阈值）' : '无偏差'),
+      ? `⚠️ 偏差提醒:${deviations.filter(d => d.alert).map(d => d.diffText).join(';')}`
+      : (deviations.length > 0 ? '已记录差异(未超阈值)' : '无偏差'),
   };
 }
 
 function parseTimeToMinutes(timeStr) {
-  // 支持 "07:50-09:21" 格式，取出发时间的分钟数
+  // 支持 "07:50-09:21" 格式,取出发时间的分钟数
   // 也支持纯时间 "07:50"
   const t = timeStr.split('-')[0].trim();
   const m = t.match(/(\d{1,2}):(\d{2})/);
@@ -1558,7 +1558,7 @@ function cmdSetNodeStatus(tripId, dayIndex, nodeIndex, status, actual) {
 
   const validStatuses = Object.values(NODE_STATUS);
   if (!validStatuses.includes(status)) {
-    return { error: `无效的状态: ${status}，支持: ${validStatuses.join(', ')}` };
+    return { error: `无效的状态: ${status},支持: ${validStatuses.join(', ')}` };
   }
 
   node.actualStatus = status;
@@ -1570,7 +1570,7 @@ function cmdSetNodeStatus(tripId, dayIndex, nodeIndex, status, actual) {
     if (actual.actualRemark) node.actualRemark = actual.actualRemark;
   }
 
-  // 如果提供了实际数据，触发偏差对比
+  // 如果提供了实际数据,触发偏差对比
   let compareResult = null;
   if (actual && (actual.actualTime || actual.actualCost != null || actual.actualRemark)) {
     compareResult = compareActualVsPlan(trip, { dayIndex, nodeIndex, ...actual });
@@ -1591,26 +1591,26 @@ function cmdSetNodeStatus(tripId, dayIndex, nodeIndex, status, actual) {
   };
 }
 
-// ── 命令：hike-log ────────────────────────────────────
+// ── 命令:hike-log ────────────────────────────────────
 
 /**
- * hike-log — 记录行程最新信息。
+ * hike-log - 记录行程最新信息。
  *
- * 用途：
- * - 🚄 订好车票：粘贴 12306 订单短信自动解析（车次/站点/时间/座位）
- * - ✈️ 订好机票：粘贴航司订单短信自动解析（航班/城市/日期/舱位）
- * - 🏨 订了酒店：粘贴酒店订单短信自动解析（店名/入住/退房/房型）
- * - 💰 支出花销：记录实际花费，自动与预算对比
- * - ⏰ 时间变更：记录实际出发/到达时间，自动计算偏差
- * - 📝 备注信息：任意文本记录
+ * 用途:
+ * - 🚄 订好车票:粘贴 12306 订单短信自动解析(车次/站点/时间/座位)
+ * - ✈️ 订好机票:粘贴航司订单短信自动解析(航班/城市/日期/舱位)
+ * - 🏨 订了酒店:粘贴酒店订单短信自动解析(店名/入住/退房/房型)
+ * - 💰 支出花销:记录实际花费,自动与预算对比
+ * - ⏰ 时间变更:记录实际出发/到达时间,自动计算偏差
+ * - 📝 备注信息:任意文本记录
  *
- * 自动能力：
- * - 订单短信智能解析（12306 / 航司 / 酒店 / OTA）
+ * 自动能力:
+ * - 订单短信智能解析(12306 / 航司 / 酒店 / OTA)
  * - 计划 vs 实际时间/费用偏差对比
- * - 节点状态自动标记（完成/变更/跳过/待定）
+ * - 节点状态自动标记(完成/变更/跳过/待定)
  *
  * @param {string} text - 日志文本或订单短信
- * @param {string} [dateStr] - 日期，默认今天
+ * @param {string} [dateStr] - 日期,默认今天
  */
 function cmdLog(text, dateStr, options) {
   const { state } = loadStateWithFallback();
@@ -1649,14 +1649,14 @@ function cmdLog(text, dateStr, options) {
     }
   }
 
-  // ── 2. 解析实际时间（多种自然语言表达） ──
+  // ── 2. 解析实际时间(多种自然语言表达) ──
   const actualTimePatterns = [
-    /实际[出发到]*[时间：:：]\s*(\d{1,2}:\d{2})/,
+    /实际[出发到]*[时间:::]\s*(\d{1,2}:\d{2})/,
     /实[际在][到出发]*(\d{1,2}:\d{2})/,
     /(\d{1,2}:\d{2})[出发到]的/,
     /改到\s*(\d{1,2}:\d{2})/,
     /调整[为到]\s*(\d{1,2}:\d{2})/,
-    /实际.*?(\d{1,2}:\d{2}\s*[-—~至到]\s*\d{1,2}:\d{2})/,
+    /实际.*?(\d{1,2}:\d{2}\s*[--~至到]\s*\d{1,2}:\d{2})/,
   ];
   let actualTime = null;
   for (const p of actualTimePatterns) {
@@ -1683,32 +1683,32 @@ function cmdLog(text, dateStr, options) {
         logEntry.costOverrun = parseFloat(extraCostMatch[1]);
       }
     }
-    // 花了 / 用了 ¥XX（排除「多花/额外花」避免与 costOverrun 冲突）
+    // 花了 / 用了 ¥XX(排除「多花/额外花」避免与 costOverrun 冲突)
     const spentMatch = text.match(/(?<!多)(?<!额外)(?:[花用]了)\s*(\d+(?:\.\d{1,2})?)\s*(?:块|元|¥)/);
     if (spentMatch && !actualCostMatch) {
       actualCost = parseFloat(spentMatch[1]);
     }
   }
 
-  // ── 4. 解析时间延迟（经典模式） ──
+  // ── 4. 解析时间延迟(经典模式) ──
   const delayMatch = text.match(/[晚迟](?:了)?(\d+)\s*(?:分钟|min)/);
   if (delayMatch) {
     logEntry.delayMinutes = parseInt(delayMatch[1]);
   }
 
   // ── 5. 尝试订单 SMS 解析 ──
-  // 先快速检测文本是否包含订单特征关键词，如有则需要用户同意
+  // 先快速检测文本是否包含订单特征关键词,如有则需要用户同意
   const smsKeywords = /订单|车次|航班|预订|入住|退房|12306|携程|航旅|飞猪/i;
   let sms = null;
   if (opts.confirmed || !smsKeywords.test(text)) {
     sms = parseOrderSMS(text);
   } else {
-    // 检测到疑似订单短信，要求用户确认
+    // 检测到疑似订单短信,要求用户确认
     return {
       needsConsent: true,
       consentType: 'sms_parse',
       tripId: trip.tripId,
-      message: '⚠️ 您提供的短信内容（含订单号、日期、车次/航班/酒店名称等出行信息）将被保存在本地服务器上。同一服务器的其他用户可能可以查看这些数据。是否继续？',
+      message: '⚠️ 您提供的短信内容(含订单号、日期、车次/航班/酒店名称等出行信息)将被保存在本地服务器上。同一服务器的其他用户可能可以查看这些数据。是否继续?',
     };
   }
 
@@ -1742,7 +1742,7 @@ function cmdLog(text, dateStr, options) {
       }
     }
 
-    // 如果没匹配到但有实际数据或偏差，默认匹配第一个交通/徒步节点
+    // 如果没匹配到但有实际数据或偏差,默认匹配第一个交通/徒步节点
     if (matchedNodeIndex === -1 && (actualTime || actualCost != null || logEntry.delayMinutes || logEntry.costOverrun)) {
       matchedNodeIndex = 0;
     }
@@ -1802,41 +1802,41 @@ function cmdLog(text, dateStr, options) {
   saveState(state, trip.outputDir);
 
   // 构建返回消息
-  const parts = [`已记录 ${logDate}：${text}`];
+  const parts = [`已记录 ${logDate}:${text}`];
   if (sms && sms.type) {
     const icon = sms.type === 'train' ? '🚄' : sms.type === 'flight' ? '✈️' : '🏨';
     const action = result.smsApply?.applied ? (result.smsApply.action === 'updated' ? '更新' : '添加') : '检测到但未';
-    parts.push(`${icon} ${action}订单：${result.smsApply?.detail || sms.data.orderId}`);
+    parts.push(`${icon} ${action}订单:${result.smsApply?.detail || sms.data.orderId}`);
   }
   if (result.compare && result.compare.alert) {
     parts.push(`⚠️ ${result.compare.message}`);
   }
   if (detectedStatus) {
-    parts.push(`${NODE_STATUS_ICONS[detectedStatus]} 节点状态已标记为：${detectedStatus}`);
+    parts.push(`${NODE_STATUS_ICONS[detectedStatus]} 节点状态已标记为:${detectedStatus}`);
   }
   result.message = parts.join('\n');
 
   return result;
 }
 
-// ── 命令：hike-list ───────────────────────────────────
+// ── 命令:hike-list ───────────────────────────────────
 
 const INCOMPLETE_STATUSES = [STATUS.PLANNING, STATUS.CONFIRMED, STATUS.ACTIVE];
 
 /**
- * 列出所有未完成的行程（status 为 PLANNING/CONFIRMED/ACTIVE）。
- * 传入 tripId 则对该行程做完整汇总+归档（原 hike-summary 逻辑）。
- * @param {string} [tripId] - 可选，归档指定行程
+ * 列出所有未完成的行程(status 为 PLANNING/CONFIRMED/ACTIVE)。
+ * 传入 tripId 则对该行程做完整汇总+归档(原 hike-summary 逻辑)。
+ * @param {string} [tripId] - 可选,归档指定行程
  */
 function cmdList(tripId) {
   const { state } = loadStateWithFallback();
 
-  // ── 指定 tripId：完整汇总 + 归档（原 hike-summary 逻辑） ──
+  // ── 指定 tripId:完整汇总 + 归档(原 hike-summary 逻辑) ──
   if (tripId) {
     return cmdListArchive(state, tripId);
   }
 
-  // ── 无参数：列出所有未完成的行程 ──
+  // ── 无参数:列出所有未完成的行程 ──
   const incompleteTrips = Object.entries(state.trips)
     .filter(([, trip]) => INCOMPLETE_STATUSES.includes(trip.status))
     .map(([id, trip]) => {
@@ -1881,12 +1881,12 @@ function cmdList(tripId) {
       completed: completedCount,
     },
     activeTripId: state.activeTripId,
-    message: `共 ${incompleteTrips.length} 个未完成行程（总计 ${totalTrips} 个，已完成 ${completedCount} 个）`,
+    message: `共 ${incompleteTrips.length} 个未完成行程(总计 ${totalTrips} 个,已完成 ${completedCount} 个)`,
   };
 }
 
 /**
- * 对指定 tripId 做完整汇总+归档（原 hike-summary 逻辑，hike-list <tripId> 时调用）
+ * 对指定 tripId 做完整汇总+归档(原 hike-summary 逻辑,hike-list <tripId> 时调用)
  */
 function cmdListArchive(state, tripId) {
   const trip = state.trips[tripId];
@@ -1965,35 +1965,35 @@ function cmdListArchive(state, tripId) {
   return summary;
 }
 
-// ── 命令：hike-select（取代 hike-set） ────────────────
+// ── 命令:hike-select(取代 hike-set) ────────────────
 
 /**
- * hike-select — 选择/切换默认输出目录或激活行程。
+ * hike-select - 选择/切换默认输出目录或激活行程。
  *
- * 用法 1：hike-select output <path>
- *   设置/切换默认输出目录，持久化到 config.json
+ * 用法 1:hike-select output <path>
+ *   设置/切换默认输出目录,持久化到 config.json
  *
- * 用法 2：hike-select <planname>
- *   激活/选择某个行程进行管理。<planname> 可以是 tripId 或目的地关键词，支持模糊匹配。
- *   选择后，hike-status / hike-today / hike-log 等命令都作用于被选中的行程。
+ * 用法 2:hike-select <planname>
+ *   激活/选择某个行程进行管理。<planname> 可以是 tripId 或目的地关键词,支持模糊匹配。
+ *   选择后,hike-status / hike-today / hike-log 等命令都作用于被选中的行程。
  *
  * @param {string} arg1 - 'output' 或 planname
- * @param {string} [arg2] - output 路径（仅 arg1='output' 时有效）
+ * @param {string} [arg2] - output 路径(仅 arg1='output' 时有效)
  */
 function cmdSelect(arg1, arg2) {
   if (!arg1) {
-    return { error: '用法：hike-select output <路径> | baseurl <URL> | <行程名>' };
+    return { error: '用法:hike-select output <路径> | baseurl <URL> | <行程名>' };
   }
 
-  // ── 用法 1：hike-select output <path> ──
+  // ── 用法 1:hike-select output <path> ──
   if (arg1 === 'output') {
     if (!arg2) {
-      return { error: '请提供输出目录路径，例如：hike-select output /path/to/planner' };
+      return { error: '请提供输出目录路径,例如:hike-select output /path/to/planner' };
     }
     const resolved = path.resolve(arg2);
     const parent = path.dirname(resolved);
     if (!fs.existsSync(parent)) {
-      return { error: `父目录不存在：${parent}` };
+      return { error: `父目录不存在:${parent}` };
     }
     const config = loadConfig();
     config.outputDir = resolved;
@@ -2002,17 +2002,17 @@ function cmdSelect(arg1, arg2) {
       key: 'outputDir',
       value: resolved,
       configPath: CONFIG_FILE,
-      message: `默认输出目录已设置为：${resolved}`,
+      message: `默认输出目录已设置为:${resolved}`,
     };
   }
 
-  // ── 用法 2：hike-select baseurl <url> ──
+  // ── 用法 2:hike-select baseurl <url> ──
   if (arg1 === 'baseurl') {
     if (!arg2) {
       const config = loadConfig();
       return {
-        current: config.webBaseUrl || 'http://localhost（默认）',
-        message: `当前 webBaseUrl: ${config.webBaseUrl || 'http://localhost（默认）'}`,
+        current: config.webBaseUrl,
+        message: `当前 webBaseUrl: ${config.webBaseUrl}`,
       };
     }
     const url = arg2.replace(/\/+$/, ''); // 去除尾部斜杠
@@ -2023,16 +2023,16 @@ function cmdSelect(arg1, arg2) {
       key: 'webBaseUrl',
       value: url,
       configPath: CONFIG_FILE,
-      message: `Web 基础 URL 已设置为：${url}`,
+      message: `Web 基础 URL 已设置为:${url}`,
     };
   }
 
-  // ── 用法 2：hike-select <planname> ──
+  // ── 用法 2:hike-select <planname> ──
   const query = arg1.toLowerCase();
   const configuredDir = getOutputDir();
   let state = loadState(configuredDir);
 
-  // 如果在已配置的目录中没有行程，也检查默认目录并合并
+  // 如果在已配置的目录中没有行程,也检查默认目录并合并
   let effectiveDir = configuredDir;
   if (configuredDir !== DEFAULT_OUTPUT_DIR) {
     const defaultState = loadState(DEFAULT_OUTPUT_DIR);
@@ -2053,7 +2053,7 @@ function cmdSelect(arg1, arg2) {
     return { error: '没有任何行程。请先 hike-init 创建行程。' };
   }
 
-  // 模糊匹配：精确 tripId > 部分 tripId > 目的地关键词
+  // 模糊匹配:精确 tripId > 部分 tripId > 目的地关键词
   let matches = [];
 
   // 1. 精确 tripId 匹配
@@ -2089,7 +2089,7 @@ function cmdSelect(arg1, arg2) {
 
   if (matches.length > 1) {
     return {
-      error: `找到 ${matches.length} 个匹配的行程，请更精确地指定：`,
+      error: `找到 ${matches.length} 个匹配的行程,请更精确地指定:`,
       candidates: matches.map(([id, t]) => ({
         tripId: id,
         destination: t.destination,
@@ -2115,12 +2115,12 @@ function cmdSelect(arg1, arg2) {
     statusLabel: statusLabel[matchedTrip.status] || matchedTrip.status,
     dates: matchedTrip.dates,
     message: wasActive
-      ? `已在管理「${matchedTrip.destination}」（${matchedId}）`
-      : `✅ 已切换到「${matchedTrip.destination}」（${matchedId}），后续 hike-status/today/log 将作用于该行程。`,
+      ? `已在管理「${matchedTrip.destination}」(${matchedId})`
+      : `✅ 已切换到「${matchedTrip.destination}」(${matchedId}),后续 hike-status/today/log 将作用于该行程。`,
   };
 }
 
-// ── 命令：生成行程计划文件 ───────────────────────────
+// ── 命令:生成行程计划文件 ───────────────────────────
 
 /**
  * 按 PLAN_TEMPLATE 格式渲染完整行程计划
@@ -2149,15 +2149,15 @@ function cmdGeneratePlan(tripId) {
     tripId: trip.tripId,
     filePath: filePath,
     content: md,
-    message: `行程计划已生成：${filePath}`,
+    message: `行程计划已生成:${filePath}`,
   };
 }
 
 // ── Day 编号解析工具 ────────────────────────────────
 
 /**
- * 解析 Day 编号字符串（day1-dayN）为 0-indexed 数组索引
- * 也兼容纯数字格式（1-N）
+ * 解析 Day 编号字符串(day1-dayN)为 0-indexed 数组索引
+ * 也兼容纯数字格式(1-N)
  */
 function parseDayIndex(dayStr) {
   if (!dayStr) return -1;
@@ -2169,11 +2169,11 @@ function parseDayIndex(dayStr) {
   return -1;
 }
 
-// ── 命令：hike-add（Day 级新增行程段） ─────────────────────
+// ── 命令:hike-add(Day 级新增行程段) ─────────────────────
 
 /**
  * 在指定 Day 末尾新增行程段节点
- * 用法：hike-add day3 A-B
+ * 用法:hike-add day3 A-B
  */
 function cmdAddDay(dayStr, routeStr, tripId) {
   const { state } = loadStateWithFallback();
@@ -2182,15 +2182,15 @@ function cmdAddDay(dayStr, routeStr, tripId) {
 
   const dayIndex = parseDayIndex(dayStr);
   if (dayIndex < 0 || dayIndex >= trip.days.length) {
-    return { error: `DAY 参数无效。有效范围：day1-day${trip.days.length}` };
+    return { error: `DAY 参数无效。有效范围:day1-day${trip.days.length}` };
   }
   if (!routeStr || !routeStr.trim()) {
-    return { error: '缺少行程段描述。用法：hike-add <DAY> <行程段>' };
+    return { error: '缺少行程段描述。用法:hike-add <DAY> <行程段>' };
   }
 
   const day = trip.days[dayIndex];
   const newNode = {
-    time: '—',
+    time: '-',
     name: routeStr.trim(),
     type: 'activity',
     cost: null,
@@ -2214,11 +2214,11 @@ function cmdAddDay(dayStr, routeStr, tripId) {
   };
 }
 
-// ── 命令：hike-del（Day 级删除日程） ────────────────────────
+// ── 命令:hike-del(Day 级删除日程) ────────────────────────
 
 /**
  * 删除指定 Day
- * 用法：hike-del day3
+ * 用法:hike-del day3
  */
 function cmdDelDay(dayStr, tripId) {
   const { state } = loadStateWithFallback();
@@ -2227,7 +2227,7 @@ function cmdDelDay(dayStr, tripId) {
 
   const dayIndex = parseDayIndex(dayStr);
   if (dayIndex < 0 || dayIndex >= trip.days.length) {
-    return { error: `DAY 参数无效。有效范围：day1-day${trip.days.length}` };
+    return { error: `DAY 参数无效。有效范围:day1-day${trip.days.length}` };
   }
 
   const removed = trip.days.splice(dayIndex, 1)[0];
@@ -2246,11 +2246,11 @@ function cmdDelDay(dayStr, tripId) {
   };
 }
 
-// ── 命令：hike-reorder（Day 级重排） ──────────────────
+// ── 命令:hike-reorder(Day 级重排) ──────────────────
 
 /**
  * 调整 Day 顺序
- * 用法：hike-reorder day5 after day2
+ * 用法:hike-reorder day5 after day2
  *       hike-reorder day5 before day2
  *       hike-reorder day5 to day2
  */
@@ -2261,20 +2261,20 @@ function cmdReorderDay(dayStr, action, targetDay, tripId) {
 
   const srcIdx = parseDayIndex(dayStr);
   if (srcIdx < 0 || srcIdx >= trip.days.length) {
-    return { error: `DAY 参数无效。有效范围：day1-day${trip.days.length}` };
+    return { error: `DAY 参数无效。有效范围:day1-day${trip.days.length}` };
   }
 
   if (!action || !['after', 'before', 'to'].includes(action)) {
-    return { error: `无效操作：${action}。支持 after/before/to` };
+    return { error: `无效操作:${action}。支持 after/before/to` };
   }
 
   if (!targetDay || !targetDay.trim()) {
-    return { error: '缺少目标 Day。用法：hike-reorder <DAY> after|before|to <目标DAY>' };
+    return { error: '缺少目标 Day。用法:hike-reorder <DAY> after|before|to <目标DAY>' };
   }
 
   let tgtIdx = parseDayIndex(targetDay);
   if (tgtIdx < 0 || tgtIdx >= trip.days.length) {
-    return { error: `目标 DAY 参数无效。有效范围：day1-day${trip.days.length}` };
+    return { error: `目标 DAY 参数无效。有效范围:day1-day${trip.days.length}` };
   }
 
   let destIdx;
@@ -2299,11 +2299,11 @@ function cmdReorderDay(dayStr, action, targetDay, tripId) {
   }
 
   if (destIdx === srcIdx) {
-    return { ok: true, tripId: trip.tripId, message: '已在目标位置，无需移动。' };
+    return { ok: true, tripId: trip.tripId, message: '已在目标位置,无需移动。' };
   }
 
   const [moved] = trip.days.splice(srcIdx, 1);
-  // splice 之后如果 srcIdx < destIdx，destIdx 需要 -1
+  // splice 之后如果 srcIdx < destIdx,destIdx 需要 -1
   if (srcIdx < destIdx) destIdx--;
   trip.days.splice(destIdx, 0, moved);
   trip.updatedAt = new Date().toISOString();
@@ -2334,16 +2334,16 @@ function getDefaultEquipment(trip) {
   const isHeavy = /高强度|重装|穿越/.test(fitness);
 
   const eq = {
-    '鞋': '徒步鞋/越野跑鞋（建议中帮，防水）',
+    '鞋': '徒步鞋/越野跑鞋(建议中帮,防水)',
     '衣': '速干衣裤、冲锋衣/雨衣' + (isWinter ? '、保暖内衣、羽绒服' : '') + '、换洗衣物',
     '包': (isHeavy ? '重装背包50-70L' : '徒步背包20-35L') + '、防水罩',
     '导航': '手机+两步路/六只脚离线地图、充电宝',
-    '水': '水袋/保温杯 1-2L，沿途补给点补水',
-    '食物': '路餐（能量棒/坚果/面包）、电解质冲剂',
+    '水': '水袋/保温杯 1-2L,沿途补给点补水',
+    '食物': '路餐(能量棒/坚果/面包)、电解质冲剂',
     '防晒': '防晒霜SPF50+、遮阳帽、太阳镜、头巾',
     '药品': '创可贴、云南白药、肠胃药、感冒药' + (isHighAlpine ? '、高原安/红景天' : ''),
-    '证件': '身份证、学生证/老年证（如有优惠）',
-    '电子': '充电宝、数据线、相机（如需）',
+    '证件': '身份证、学生证/老年证(如有优惠)',
+    '电子': '充电宝、数据线、相机(如需)',
     '其他': '登山杖×2、头灯/手电、急救毯、现金若干',
   };
 
@@ -2357,14 +2357,14 @@ function getDefaultEquipment(trip) {
  */
 function getDefaultTodos(trip) {
   const todos = [
-    { text: '订火车票/机票（确认出发日期和班次）', done: false },
-    { text: '订酒店（确认入住日期和房型）', done: false },
+    { text: '订火车票/机票(确认出发日期和班次)', done: false },
+    { text: '订酒店(确认入住日期和房型)', done: false },
     { text: '检查装备清单并补齐缺失物品', done: false },
-    { text: '购买户外保险（推荐：慧择/平安户外险）', done: false },
-    { text: '下载离线地图和GPX/KML轨迹（两步路/六只脚）', done: false },
+    { text: '购买户外保险(推荐:慧择/平安户外险)', done: false },
+    { text: '下载离线地图和GPX/KML轨迹(两步路/六只脚)', done: false },
   ];
 
-  // 如果有徒步路线，加上轨迹相关
+  // 如果有徒步路线,加上轨迹相关
   if (trip.hikingRoutes && trip.hikingRoutes.length > 0) {
     todos.push('熟悉徒步路线的关键节点和补给点');
   }
@@ -2383,7 +2383,7 @@ function getHikeRouteSummary(nodeName, hikingRoutes) {
 
   // 尝试精确匹配路线名
   let route = hikingRoutes.find(r => r.name === nodeName);
-  // 模糊匹配：节点名包含路线名或路线名包含节点名
+  // 模糊匹配:节点名包含路线名或路线名包含节点名
   if (!route) {
     route = hikingRoutes.find(r =>
       (nodeName && nodeName.includes(r.name)) || (r.name && r.name.includes(nodeName))
@@ -2410,7 +2410,7 @@ function getHikeRouteSummary(nodeName, hikingRoutes) {
 }
 
 /**
- * 判断行程是否在冬季（11月-3月）
+ * 判断行程是否在冬季(11月-3月)
  */
 function isWinterTrip(trip) {
   if (!trip.dates || !trip.dates.start) return false;
@@ -2438,7 +2438,7 @@ function renderTravelAdvice(trip, lines) {
     n.name && n.name.includes('→')
   ));
   const arrivalTransport = arrivalNodes.length > 0
-    ? arrivalNodes.map(n => `${n.name}（${n.detail || ''}）`).join('；')
+    ? arrivalNodes.map(n => `${n.name}(${n.detail || ''})`).join(';')
     : '待确认';
   lines.push(`| 到达交通 | ${arrivalTransport} |`);
 
@@ -2453,7 +2453,7 @@ function renderTravelAdvice(trip, lines) {
       )
     : [];
   const departureTransport = lastDayNodes.length > 0
-    ? lastDayNodes.map(n => `${n.name}（${n.detail || ''}）`).join('；')
+    ? lastDayNodes.map(n => `${n.name}(${n.detail || ''})`).join(';')
     : '待确认';
   lines.push(`| 离开交通 | ${departureTransport} |`);
 
@@ -2462,7 +2462,7 @@ function renderTravelAdvice(trip, lines) {
     ['taxi', 'car', 'selfdrive', 'bus', 'metro'].includes(n.type)
   ));
   const localTransport = localTransports.length > 0
-    ? [...new Set(localTransports.map(n => n.remark || n.name))].filter(Boolean).join('；') || '包车/打车/公共交通'
+    ? [...new Set(localTransports.map(n => n.remark || n.name))].filter(Boolean).join(';') || '包车/打车/公共交通'
     : '建议提前联系当地包车司机或使用打车软件';
   lines.push(`| 当地交通 | ${localTransport} |`);
   lines.push('');
@@ -2504,7 +2504,7 @@ function renderTravelAdvice(trip, lines) {
       lines.push('');
     }
   } else {
-    // 占位：提示用户可搜索推荐
+    // 占位:提示用户可搜索推荐
     lines.push('#### 网红推荐');
     lines.push('');
     lines.push(`> 💡 使用 \`xiaohongshu__search_feeds\` 搜索「${trip.destination} 徒步 攻略」获取最新网红推荐。`);
@@ -2515,7 +2515,7 @@ function renderTravelAdvice(trip, lines) {
 // ── 地图链接自动生成 ─────────────────────────────
 
 /**
- * 根据节点类型推导路线类型（高德地图 routeType 参数）
+ * 根据节点类型推导路线类型(高德地图 routeType 参数)
  * @param {string} nodeType - 节点类型
  * @returns {string} driving | walking | transfer | straight
  */
@@ -2533,32 +2533,32 @@ function getNodeRouteType(nodeType) {
  * 为指定 day 自动生成高德地图可视化路线链接
  * @param {number} dayIndex - day 索引
  * @param {string[]} stops - 节点名称列表
- * @param {string} [region] - 省市区县范围，用于地理编码消歧义（如 "北京市延庆区"）
+ * @param {string} [region] - 省市区县范围,用于地理编码消歧义(如 "北京市延庆区")
  * @param {Array<{lat:number,lng:number}>} [coords] - GPX/KML 提取的 GPS 坐标
- * @param {string[]} [routeTypes] - 逐段路线类型数组（长度 = stops.length - 1），默认全为 driving
+ * @param {string[]} [routeTypes] - 逐段路线类型数组(长度 = stops.length - 1),默认全为 driving
  * @returns {{ link: string|null, error: string|null }}
  */
 function renderDayMap(dayIndex, stops, region, coords, routeTypes) {
   const key = process.env.AMAP_WEBSERVICE_KEY;
   if (!key) {
-    return { link: null, error: '未设置 AMAP_WEBSERVICE_KEY 环境变量，无法生成地图链接' };
+    return { link: null, error: '未设置 AMAP_WEBSERVICE_KEY 环境变量,无法生成地图链接' };
   }
 
   if (!stops || stops.length < 2) {
-    return { link: null, error: '节点数量不足（至少需要2个节点）' };
+    return { link: null, error: '节点数量不足(至少需要2个节点)' };
   }
 
   const scriptPath = path.join(__dirname, 'render-itinerary-map.js');
 
   try {
-    // 构建逐段路线类型参数（逗号分隔）
+    // 构建逐段路线类型参数(逗号分隔)
     const rtypes = (routeTypes && routeTypes.length > 0) ? routeTypes : stops.slice(0, -1).map(() => 'driving');
     const routeTypeArg = rtypes.join(',');
 
-    // 优先使用 GPX/KML 提取的 GPS 坐标（无需地理编码，精度最高）
+    // 优先使用 GPX/KML 提取的 GPS 坐标(无需地理编码,精度最高)
     if (coords && coords.length >= 2) {
       const coordsStr = coords.map(c => `${c.lng},${c.lat}`).join('|');
-      // 使用 waypoints 的名称作为 POI 标签，确保起点/终点与坐标一致
+      // 使用 waypoints 的名称作为 POI 标签,确保起点/终点与坐标一致
       const waypointNames = coords.map(c => (c.name || '').replace(/,/g, ' '));
       const namesStr = waypointNames.join('|');
       const env = { ...process.env, AMAP_WEBSERVICE_KEY: key };
@@ -2570,7 +2570,7 @@ function renderDayMap(dayIndex, stops, region, coords, routeTypes) {
       if (match) return { link: match[0], error: null };
     }
 
-    // 兜底：通过地名地理编码（带省市区县前缀消歧义）
+    // 兜底:通过地名地理编码(带省市区县前缀消歧义)
     const stopsStr = stops.map(s => s.replace(/,/g, ' ')).join(',');
     const regionArg = region ? ` --region="${region.replace(/"/g, '')}"` : '';
     const env = { ...process.env, AMAP_WEBSERVICE_KEY: key };
@@ -2592,15 +2592,15 @@ function renderDayMap(dayIndex, stops, region, coords, routeTypes) {
 function renderPlan(trip) {
   const lines = [];
 
-  // 标题（优先 trip.title，空则 fallback）
+  // 标题(优先 trip.title,空则 fallback)
   const h1 = trip.title
     ? `# ${trip.title}`
     : `# 🥾 ${trip.destination || '旅行'} 出行计划`;
   lines.push(h1);
   lines.push('');
-  lines.push(`**出行日期**：${formatFullDate(trip.dates.start)} - ${formatFullDate(trip.dates.end)}`);
-  lines.push(`**目的地**：${trip.destination}`);
-  lines.push(`**人员**：${trip.participants}人`);
+  lines.push(`**出行日期**:${formatFullDate(trip.dates.start)} - ${formatFullDate(trip.dates.end)}`);
+  lines.push(`**目的地**:${trip.destination}`);
+  lines.push(`**人员**:${trip.participants}人`);
   lines.push('');
 
   // 总览表
@@ -2624,7 +2624,7 @@ function renderPlan(trip) {
   lines.push('## 每日安排');
   lines.push('');
   for (const day of trip.days) {
-    lines.push(`### DAY ${day.dayIndex} — ${formatDate(day.date)}（${day.dayOfWeek}）：${day.theme}`);
+    lines.push(`### DAY ${day.dayIndex} - ${formatDate(day.date)}(${day.dayOfWeek}):${day.theme}`);
     lines.push('');
     if (day.nodes.length === 0) {
       lines.push('| 时间 | 区间 | 节点详情 | 费用 | 备注 |');
@@ -2683,7 +2683,7 @@ function renderPlan(trip) {
             if (route.distance) parts.push(`${route.distance}${route.distanceUnit || 'km'}`);
             if (route.ascent) parts.push(`爬升${route.ascent}m`);
             if (route.estimatedTime) parts.push(`预计${route.estimatedTime}`);
-            detail = `${keyNodesStr}（${parts.join('，')}）`;
+            detail = `${keyNodesStr}(${parts.join(',')})`;
           }
           lines.push(`| ${timeStr} | 🥾 徒步 | ${detail} | ${node.cost ? `¥${node.cost}` : ''} | |`);
         } else {
@@ -2700,10 +2700,10 @@ function renderPlan(trip) {
       // 自动生成地图链接
       const stopNames = day.nodes.map(n => n.name).filter(Boolean);
       if (stopNames.length >= 2) {
-        // 尝试从当天的徒步路线中提取 GPS 坐标（GPX/KML 直接解析，精度最高）
+        // 尝试从当天的徒步路线中提取 GPS 坐标(GPX/KML 直接解析,精度最高)
         const dayHikeRoute = trip.hikingRoutes.find(r => r.dayIndex === day.dayIndex || r.name === (day.nodes.find(n => n.type === 'hiking') || {}).name);
         const gpsCoords = (dayHikeRoute && dayHikeRoute.waypoints && dayHikeRoute.waypoints.length >= 2) ? dayHikeRoute.waypoints : null;
-        // 逐段推导路线类型（根据节点类型自动映射）
+        // 逐段推导路线类型(根据节点类型自动映射)
         const { routeTypes } = getRouteTypesForDay(day);
         const segTypes = routeTypes ? routeTypes.split(',') : [];
         const { link, error } = renderDayMap(day.dayIndex, stopNames, trip.destinationRegion, gpsCoords, segTypes);
@@ -2717,7 +2717,7 @@ function renderPlan(trip) {
       }
     }
     if (day.dayCost > 0) {
-      lines.push(`> 💰 本日费用：约¥${day.dayCost}`);
+      lines.push(`> 💰 本日费用:约¥${day.dayCost}`);
     }
     lines.push('');
   }
@@ -2728,7 +2728,7 @@ function renderPlan(trip) {
   lines.push(`### ${trip.destination}`);
   lines.push('');
 
-  // 文化信息 — 3-5 个最相关分类
+  // 文化信息 - 3-5 个最相关分类
   const cultureOrder = ['geography', 'history', 'poetry', 'relics', 'worldHeritage', 'food', 'religion', 'festivals'];
   const cultureTitles = {
     geography: '地理风貌',
@@ -2763,7 +2763,7 @@ function renderPlan(trip) {
         lines.push('');
       }
     }
-    // 强制补齐：如果少于3个已有分类，生成占位节
+    // 强制补齐:如果少于3个已有分类,生成占位节
     if (renderedKeys.size < 3) {
       const remaining = cultureOrder.filter(k => !renderedKeys.has(k));
       const toAdd = remaining.slice(0, 3 - renderedKeys.size);
@@ -2775,7 +2775,7 @@ function renderPlan(trip) {
       }
     }
   } else {
-    // 完全没有文化信息：输出最少3个占位节
+    // 完全没有文化信息:输出最少3个占位节
     const defaultCategories = cultureOrder.slice(0, 3);
     for (const key of defaultCategories) {
       lines.push(`### ${cultureTitles[key] || key}`);
@@ -2785,7 +2785,7 @@ function renderPlan(trip) {
     }
   }
 
-  // ── 徒步路线详情（独立顶级章节，与总览/每日安排/行程详情同级） ──
+  // ── 徒步路线详情(独立顶级章节,与总览/每日安排/行程详情同级) ──
   if (trip.hikingRoutes.length > 0) {
     lines.push('## 徒步路线详情');
     lines.push('');
@@ -2805,7 +2805,7 @@ function renderPlan(trip) {
       if (route.gpxSource) lines.push(`| 轨迹来源 | ${route.gpxSource} |`);
       if (route.trackMapPath) {
         const config = loadConfig();
-        const webBase = config.webBaseUrl || 'http://localhost';
+        const webBase = config.webBaseUrl;
         if (webBase) {
           const encodedPath = encodeURIComponent(`upcoming/${trip.tripId}/${route.trackMapPath}`);
           const webUrl = `${webBase}/api/openmedia/raw?root=trip&path=${encodedPath}`;
@@ -2873,7 +2873,7 @@ function renderPlan(trip) {
   }
   lines.push('');
 
-  lines.push(`*创建日期：${formatDate(trip.createdAt.split('T')[0])}*`);
+  lines.push(`*创建日期:${formatDate(trip.createdAt.split('T')[0])}*`);
 
   return lines.join('\n');
 }
@@ -2882,7 +2882,7 @@ function renderPlan(trip) {
 
 /**
  * 对照 PLAN_TEMPLATE 检查生成的行程计划内容是否包含所有必需板块。
- * 在计划生成完成后调用，确保输出质量。
+ * 在计划生成完成后调用,确保输出质量。
  *
  * @param {string} content - renderPlan 的输出
  * @returns {{ complete: boolean, missing: string[], warnings: string[] }}
@@ -2891,7 +2891,7 @@ function validatePlan(content, trip) {
   const missing = [];
   const warnings = [];
 
-  // ── 顶级章节检查（必须包含） ──
+  // ── 顶级章节检查(必须包含) ──
   const requiredHeadings = [
     { pattern: /^## 总览/m, name: '总览' },
     { pattern: /^## 每日安排/m, name: '每日安排' },
@@ -2916,7 +2916,7 @@ function validatePlan(content, trip) {
     if (trip && trip.days) {
       const overviewLines = (content.match(/^\| \d{1,2}\/\d{1,2} \|/gm) || []).length;
       if (overviewLines < trip.days.length) {
-        warnings.push(`总览表 - 期望 ${trip.days.length} 行，实际 ${overviewLines} 行`);
+        warnings.push(`总览表 - 期望 ${trip.days.length} 行,实际 ${overviewLines} 行`);
       }
     }
   }
@@ -2937,15 +2937,15 @@ function validatePlan(content, trip) {
     }
   }
 
-  // ── 行程详情检查（至少 3 个文化分类） ──
+  // ── 行程详情检查(至少 3 个文化分类) ──
   if (/^## 行程详情/m.test(content)) {
     const cultureHeadings = (content.match(/^### (?!DAY )(?!.*路线)(?!.*建议)(?!.*推荐)[^\n]+/gm) || []);
     if (cultureHeadings.length < 3) {
-      warnings.push(`行程详情 - 仅 ${cultureHeadings.length} 个文化分类（建议 ≥3）`);
+      warnings.push(`行程详情 - 仅 ${cultureHeadings.length} 个文化分类(建议 ≥3)`);
     }
     // 出行建议检查
     if (!/出行建议/i.test(content)) {
-      warnings.push('行程详情 - 缺少「出行建议」节（交通/网红酒店/网红景点/网红活动）');
+      warnings.push('行程详情 - 缺少「出行建议」节(交通/网红酒店/网红景点/网红活动)');
     }
   }
 
@@ -3001,10 +3001,10 @@ module.exports = {
   cmdLog,
   cmdList,
   cmdSelect,
-  // 汇总归档（hike-list <tripId>）
+  // 汇总归档(hike-list <tripId>)
   cmdListArchive,
 
-  // 辅助命令（Agent 逐步填充）
+  // 辅助命令(Agent 逐步填充)
   cmdSetRequirements,
   cmdSetHikingRoutes,
   cmdSetDayNode,
@@ -3020,18 +3020,18 @@ module.exports = {
   cmdAddDay,
   cmdDelDay,
   cmdReorderDay,
-  // 旧别名（向后兼容）
+  // 旧别名(向后兼容)
   cmdAddNode: cmdAddDay,
   cmdRemoveNode: cmdDelDay,
   cmdReorderNode: cmdReorderDay,
 
-  // 新增：订单短信解析 + 实时行程修订
+  // 新增:订单短信解析 + 实时行程修订
   cmdSetNodeStatus,
   parseOrderSMS,
   applySMSToTrip,
   compareActualVsPlan,
 
-  // 节点类型 → 路线类型映射（地图渲染）
+  // 节点类型 → 路线类型映射(地图渲染)
   getNodeRouteType,
   getNodeTransportLabel,
   getRouteTypesForDay,
