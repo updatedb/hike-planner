@@ -120,3 +120,5 @@
   - [x] ClawHub 发布 v3.0.0 ✅ (k977yqchb3k7w2kq7xphy0qj3d87mdkt)
 - [x] v3.1.0: 徒步路线地图虚线渲染 + GPX轨迹虚线 + SKILL可视更新 ✅
   - [x] ClawHub 发布 v3.1.0 ✅ (k9760qac5zk3170vq7g1fskb0987nemz)
+- [x] v3.2.0: config迁移到skill目录 + 隐私声明修正 + 只查不买→不执行订票下单候补支付 ✅
+  - [x] ClawHub 发布 v3.2.0 ✅ (k97b2pemm5xepyx26c54fpj51187mqkf)

@@ -2,8 +2,8 @@
   "name": "Hike Planner",
   "ownerId": "kn73h0b3vxspe7143ad7dk07xn822pwv",
   "slug": "hike-planner",
-  "version": "3.1.0",
-  "description": "v3.1.0: 徒步路线地图虚线渲染 + GPX轨迹虚线 + SKILL可视更新",
+  "version": "3.2.0",
+  "description": "v3.2.0: config迁移到skill目录 + 隐私声明修正 + 只查不买→不执行订票下单候补支付",
   "keywords": [
     "hiking",
     "trip",
