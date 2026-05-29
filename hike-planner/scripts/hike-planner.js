@@ -17,7 +17,7 @@ const { execSync } = require('child_process');
 const DEFAULT_OUTPUT_DIR = path.join(__dirname, '..', 'planner');
 const STATE_FILE_NAME = '.hike-planner-state.json';
 const TEMPLATE_NAME = 'PLAN_TEMPLATE.md';
-const CONFIG_DIR = path.join(os.homedir(), '.hike-planner');
+const CONFIG_DIR = path.join(__dirname, '..', 'planner');
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
 
 const STATUS = {
@@ -1971,7 +1971,7 @@ function cmdListArchive(state, tripId) {
  * hike-select — 选择/切换默认输出目录或激活行程。
  *
  * 用法 1：hike-select output <path>
- *   设置/切换默认输出目录，持久化到 ~/.hike-planner/config.json
+ *   设置/切换默认输出目录，持久化到 config.json
  *
  * 用法 2：hike-select <planname>
  *   激活/选择某个行程进行管理。<planname> 可以是 tripId 或目的地关键词，支持模糊匹配。

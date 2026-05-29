@@ -21,8 +21,8 @@
 > - `hike-add / hike-del / hike-reorder` 等编辑命令 → 用户主动操作，直接覆写行程计划文件（不弹窗，等同于"保存"）
 >   - ⚠️ `hike-del` 删除日程后不可撤销，建议执行前手动备份行程计划文件
 >   - ⚠️ `hike-reorder` 重排后原顺序不可恢复
-> - `hike-select output` 切换输出目录 → 用户主动命令，直接写入 `~/.hike-planner/config.json`（不弹窗）
-> - 所有持久化文件清单：`~/.hike-planner/config.json`（全局配置）、`{outputDir}/.hike-planner-state.json`（行程状态）、`{outputDir}/upcoming/{tripId}/{planFilename}`（行程计划）
+> - `hike-select output` 切换输出目录 → 用户主动命令，直接写入 `{skillDir}/planner/config.json`（不弹窗）
+> - 所有持久化文件清单：`{skillDir}/planner/config.json`（全局配置）、`{outputDir}/.hike-planner-state.json`（行程状态）、`{outputDir}/upcoming/{tripId}/{planFilename}`（行程计划）
 
 ---
 
