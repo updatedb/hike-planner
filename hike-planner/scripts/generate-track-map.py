@@ -184,7 +184,9 @@ def compute_stats(points):
         d = haversine(points[i-1][0], points[i-1][1], points[i][0], points[i][1])
         total_dist += d
         ele_diff = points[i][2] - points[i-1][2]
-        if abs(ele_diff) >= 3:
+        # Garmin 每秒记录一次，相邻点海拔变化平均仅 0.08m
+        # 3m 阈值会把所有真实爬升过滤成 0。0.5m 可滤 GPS 噪声但保留真实数据
+        if abs(ele_diff) >= 0.5:
             if ele_diff > 0:
                 total_ascent += ele_diff
             else:

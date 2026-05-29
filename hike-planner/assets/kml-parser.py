@@ -222,8 +222,9 @@ def _analyze_points(points):
             dist = haversine(prev['lat'], prev['lng'], pt['lat'], pt['lng'])
             total_distance += dist
             ele_diff = pt['elevation'] - prev['elevation']
-            # 忽略小于 3m 的波动
-            if abs(ele_diff) >= 3:
+            # Garmin 每秒记录一次，相邻点海拔变化平均仅 0.08m
+            # 3m 阈值会把所有真实爬升过滤成 0。0.5m 可滤 GPS 噪声但保留真实数据
+            if abs(ele_diff) >= 0.5:
                 if ele_diff > 0:
                     total_ascent += ele_diff
                 else:
