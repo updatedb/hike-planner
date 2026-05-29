@@ -6,3 +6,4 @@ __pycache__/ *.py[cod] .venv/ venv/ .env*
 dist/ build/
 *.bak*
 planner/config.json
+.hike-planner-state.json
