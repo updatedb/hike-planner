@@ -2783,11 +2783,11 @@ function renderPlan(trip) {
       if (route.keyNodes.length > 0) lines.push(`| 关键节点 | ${route.keyNodes.join('→')} |`);
       if (route.gpxSource) lines.push(`| 轨迹来源 | ${route.gpxSource} |`);
       if (route.trackMapPath) {
-        const openmediaBase = process.env.OPENMEDIA_PUBLIC_BASE_URL;
-        if (openmediaBase) {
+        const webBase = process.env.WEB_BASE_URL;
+        if (webBase) {
           const encodedPath = encodeURIComponent(`upcoming/${trip.tripId}/${route.trackMapPath}`);
-          const openmediaUrl = `${openmediaBase}/api/openmedia/raw?root=trip&path=${encodedPath}`;
-          lines.push(`| 🗺️ 轨迹地图 | [查看](${openmediaUrl}) |`);
+          const webUrl = `${webBase}/api/openmedia/raw?root=trip&path=${encodedPath}`;
+          lines.push(`| 🗺️ 轨迹地图 | [查看](${webUrl}) |`);
         } else {
           lines.push(`| 🗺️ 轨迹地图 | [查看](${route.trackMapPath}) |`);
         }

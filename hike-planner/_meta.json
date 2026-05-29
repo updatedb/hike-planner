@@ -25,13 +25,15 @@
     "network": {
       "domains": [
         "restapi.amap.com",
+        "is.autonavi.com",
+        "a.amap.com",
         "wikipedia.org",
         "2bulu.com",
         "xiaohongshu.com",
         "bilibili.com",
-        "youtube.com"
+        "unpkg.com"
       ],
-      "description": "查询高德地图 API（地理编码/路线规划）、Wikipedia、两步路、小红书、B站/YouTube"
+      "description": "高德 API/瓦片/分享链接、Wikipedia、两步路、小红书、B站、Leaflet CDN"
     },
     "environment": {
       "variables": [

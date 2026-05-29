@@ -3,14 +3,14 @@ name: Hike Planner
 description: 一站式徒步出行规划。根据用户明确指令生成行程计划（含徒步路线/交通/住宿/人文/装备）。支持查询票务/酒店信息（只查不买）、多源交叉验证（12306/两步路/高德/小红书/GPX/KML文件）。行程状态持久化到本地文件，编辑命令自动写入，短信解析需用户确认。
 permissions:
   filesystem: 在用户指定的 outputDir 下读写行程状态文件
-  network: restapi.amap.com, wikipedia.org, xiaohongshu.com 等搜索/地图服务
+  network: restapi.amap.com, is.autonavi.com, a.amap.com, wikipedia.org, 2bulu.com, xiaohongshu.com, bilibili.com, unpkg.com
   environment: AMAP_WEBSERVICE_KEY
   execution: curl, python3, node
 ---
 
 # hike-planner
 
-> 从0开始逐步完善的智能行程规划工具。**需要用户明确提供出行日期、目的地和活动类型**才会开始规划。详细执行规范见 `travel-agent-sop.md`。
+> 从0开始逐步完善的智能行程规划工具。**需要用户明确提供出行日期、目的地和活动类型**才会开始规划。详细执行规范见 `hike-planner-sop.md`。
 
 ## 能力
 
@@ -26,7 +26,7 @@ permissions:
 
 | 能力 | 说明 |
 |------|------|
-| 徒步路线搜索 | 两步路 + 小红书攻略 + B站/YouTube 视频（搜索策略详见 SOP §3.1）|
+| 徒步路线搜索 | 两步路 + 小红书攻略 + B站视频（搜索策略详见 SOP §3.1）|
 | 行程地图渲染 | 高德地图可视化链接（依赖 amap-lbs-skill）。⚠️ 行程站点名称会通过网络发送给高德地图（Amap）API。 |
 | 人文信息收集 | Wikipedia + web_search + xiaohongshu |
 | 行程计划生成 | 按 PLAN_TEMPLATE 标准格式输出 |
@@ -116,7 +116,7 @@ Agent 交互收集需求后，自动执行搜索与生成。以「古蜀道 5/13
 | `flyai` | 机票/酒店查询 | `npx clawhub install flyai`（安装后需到 [open.fly.ai](https://open.fly.ai/console) 获取 API Key） |
 | `xiaohongshu` | 小红书攻略搜索（需先登录） | `npx clawhub install xiaohongshu` |
 
-> 💡 hike-init 时会检测依赖可用性。缺失时提示用户安装或手动输入信息。不可用时的保底策略见 `travel-agent-sop.md`。
+> 💡 hike-init 时会检测依赖可用性。缺失时提示用户安装或手动输入信息。不可用时的保底策略见 `hike-planner-sop.md`。
 
 ## 不做
 
