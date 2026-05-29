@@ -26,7 +26,7 @@ permissions:
 
 | 能力 | 说明 |
 |------|------|
-| 徒步路线搜索 | 两步路轨迹（https://www.2bulu.com/track，无法访问时用 browser 真实浏览器打开）+ 小红书攻略 + B站/YouTube 视频 |
+| 徒步路线搜索 | 两步路 + 小红书攻略 + B站/YouTube 视频（搜索策略详见 SOP §3.1）|
 | 行程地图渲染 | 高德地图可视化链接（依赖 amap-lbs-skill）。⚠️ 行程站点名称会通过网络发送给高德地图（Amap）API。 |
 | 人文信息收集 | Wikipedia + web_search + xiaohongshu |
 | 行程计划生成 | 按 PLAN_TEMPLATE 标准格式输出 |
