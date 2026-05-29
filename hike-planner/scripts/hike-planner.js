@@ -2153,7 +2153,7 @@ function cmdGeneratePlan(tripId) {
   const trip = getTrip(state, tripId);
   if (!trip) return { error: '没有活动的行程' };
 
-  let md = renderPlanReadme(trip);
+  let md = renderPlan(trip);
 
   const dir = path.join(trip.outputDir, 'upcoming', trip.tripId);
   if (!fs.existsSync(dir)) {
@@ -2223,7 +2223,7 @@ function cmdAddDay(dayStr, routeStr, tripId) {
   trip.updatedAt = new Date().toISOString();
   saveState(state, trip.outputDir);
 
-  let md = renderPlanReadme(trip);
+  let md = renderPlan(trip);
   const dir = path.join(trip.outputDir, 'upcoming', trip.tripId);
   const filePath = path.join(dir, getPlanFilename(trip));
   fs.writeFileSync(filePath, md, 'utf8');
@@ -2255,7 +2255,7 @@ function cmdDelDay(dayStr, tripId) {
   trip.updatedAt = new Date().toISOString();
   saveState(state, trip.outputDir);
 
-  let md = renderPlanReadme(trip);
+  let md = renderPlan(trip);
   const dir = path.join(trip.outputDir, 'upcoming', trip.tripId);
   const filePath = path.join(dir, getPlanFilename(trip));
   fs.writeFileSync(filePath, md, 'utf8');
@@ -2311,7 +2311,7 @@ function cmdReorderDay(dayStr, action, targetDay, tripId) {
     trip.updatedAt = new Date().toISOString();
     saveState(state, trip.outputDir);
 
-    let md = renderPlanReadme(trip);
+    let md = renderPlan(trip);
     const dir = path.join(trip.outputDir, 'upcoming', trip.tripId);
     const filePath = path.join(dir, getPlanFilename(trip));
     fs.writeFileSync(filePath, md, 'utf8');
@@ -2330,7 +2330,7 @@ function cmdReorderDay(dayStr, action, targetDay, tripId) {
   trip.updatedAt = new Date().toISOString();
   saveState(state, trip.outputDir);
 
-  let md = renderPlanReadme(trip);
+  let md = renderPlan(trip);
   const dir = path.join(trip.outputDir, 'upcoming', trip.tripId);
   const filePath = path.join(dir, getPlanFilename(trip));
   fs.writeFileSync(filePath, md, 'utf8');
@@ -2610,7 +2610,7 @@ function renderDayMap(dayIndex, stops, region, coords, routeTypes) {
 }
 // ── Markdown 渲染器 ────────────────────────────────────
 
-function renderPlanReadme(trip) {
+function renderPlan(trip) {
   const lines = [];
 
   // 标题（优先 trip.title，空则 fallback）
@@ -2906,10 +2906,10 @@ function renderPlanReadme(trip) {
  * 对照 PLAN_TEMPLATE 检查生成的行程计划内容是否包含所有必需板块。
  * 在计划生成完成后调用，确保输出质量。
  *
- * @param {string} content - renderPlanReadme 的输出
+ * @param {string} content - renderPlan 的输出
  * @returns {{ complete: boolean, missing: string[], warnings: string[] }}
  */
-function validatePlanReadme(content, trip) {
+function validatePlan(content, trip) {
   const missing = [];
   const warnings = [];
 
@@ -3076,7 +3076,7 @@ module.exports = {
   getWeekday,
   getToday,
   addDays,
-  renderPlanReadme,
+  renderPlan,
   renderDayMap,
-  validatePlanReadme,
+  validatePlan,
 };
