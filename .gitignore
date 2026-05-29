@@ -5,3 +5,4 @@ __pycache__/ *.py[cod] .venv/ venv/ .env*
 .vscode/ .idea/
 dist/ build/
 *.bak*
+planner/config.json
