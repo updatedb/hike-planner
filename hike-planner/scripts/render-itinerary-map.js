@@ -186,6 +186,7 @@ async function renderWithCoords(args, key) {
       routeType: segRouteType,
       start: coords[0],
       end: coords[coords.length - 1],
+      lineStyle: segRouteType === 'walking' ? 'dashed' : 'solid',
       remark: `轨迹路线: ${firstName} → ${lastName} (${segRouteType})`
     });
   } else {
@@ -210,6 +211,7 @@ async function renderWithCoords(args, key) {
         routeType: segRouteType,
         start: start.lnglat,
         end: end.lnglat,
+        lineStyle: segRouteType === 'walking' ? 'dashed' : 'solid',
         remark: `第${i + 1}段: ${start.text} → ${end.text} (${segRouteType})`
       });
     }
@@ -343,6 +345,7 @@ async function main() {
       routeType: segRouteType,
       start: start.lnglat,
       end: end.lnglat,
+      lineStyle: segRouteType === 'walking' ? 'dashed' : 'solid',
       remark: `第${i + 1}段: ${start.text} → ${end.text} (${segRouteType})`
     });
   }

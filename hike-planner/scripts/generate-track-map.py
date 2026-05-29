@@ -386,6 +386,7 @@ var trail = L.polyline(trailCoords, {{
     color: '#3498db',
     weight: 4,
     opacity: 0.85,
+    dashArray: '8, 6',
     smoothFactor: 1
 }}).addTo(map);
 
@@ -633,6 +634,7 @@ tracks.forEach(function(trk) {{
         color: trk.color,
         weight: 4,
         opacity: 0.8,
+        dashArray: '8, 6',
         smoothFactor: 1
     }}).addTo(map);
     allBounds.push(polyline.getBounds());
