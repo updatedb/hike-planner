@@ -30,6 +30,7 @@ import xml.etree.ElementTree as ET
 # ── 常量 ────────────────────────────────────────────
 
 HAVERSINE_R = 6371000  # 地球半径（米）
+MAX_INLINE_POINTS = 5000  # 内联坐标最大点数，超出则均匀采样
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 ASSETS_DIR = os.path.join(os.path.dirname(os.path.dirname(SCRIPT_DIR)), 'assets')
 
@@ -234,8 +235,8 @@ def generate_html(points, stats, title, tile_provider):
     """生成完整的轨迹地图 HTML"""
 
     # 坐标 JSON（包含海拔）
-    coords_json = json.dumps([[p[0], p[1]] for p in points], ensure_ascii=False)
-    elevations_json = json.dumps([p[2] for p in points], ensure_ascii=False)
+    coords_json = json.dumps([[round(p[0], 6), round(p[1], 6)] for p in points], ensure_ascii=False)
+    elevations_json = json.dumps([round(p[2], 1) for p in points], ensure_ascii=False)
 
     start = points[0]
     end = points[-1]
@@ -541,7 +542,7 @@ def generate_compare_html(all_data, stats_list, title, tile_provider):
         tracks_json.append({
             'label': data['label'],
             'file': data['file'],
-            'coords': [[p[0], p[1]] for p in data['points']],
+            'coords': [[round(p[0], 6), round(p[1], 6)] for p in data['points']],
             'color': color[0],
             'borderColor': color[1],
         })
@@ -742,6 +743,11 @@ def main():
             label = get_track_name(input_path)
             points = extract_all_points(input_path)
 
+            # 大文件采样：限制内联点数避免 HTML 过大
+            if len(points) > MAX_INLINE_POINTS:
+                step = len(points) // MAX_INLINE_POINTS + 1
+                points = points[::step]
+
             if not points or len(points) < 2:
                 print(f'  ❌ 未提取到有效轨迹点: {input_path}', file=sys.stderr)
                 sys.exit(1)
@@ -800,6 +806,12 @@ def main():
         sys.exit(1)
 
     print(f'📍 轨迹点: {len(points)}')
+
+    # 大文件采样：限制内联点数避免 HTML 过大
+    if len(points) > MAX_INLINE_POINTS:
+        step = len(points) // MAX_INLINE_POINTS + 1
+        points = points[::step]
+        print(f'📐 采样后: {len(points)} 点 (步长 {step})')
 
     # 计算统计
     stats = compute_stats(points)
