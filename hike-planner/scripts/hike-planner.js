@@ -177,7 +177,7 @@ function loadConfig() {
   } catch (e) {
     // ignore
   }
-  return {};
+  return { outputDir: '', webBaseUrl: '' };
 }
 
 function saveConfig(config) {
@@ -2783,7 +2783,8 @@ function renderPlan(trip) {
       if (route.keyNodes.length > 0) lines.push(`| 关键节点 | ${route.keyNodes.join('→')} |`);
       if (route.gpxSource) lines.push(`| 轨迹来源 | ${route.gpxSource} |`);
       if (route.trackMapPath) {
-        const webBase = process.env.WEB_BASE_URL;
+        const config = loadConfig();
+        const webBase = config.webBaseUrl;
         if (webBase) {
           const encodedPath = encodeURIComponent(`upcoming/${trip.tripId}/${route.trackMapPath}`);
           const webUrl = `${webBase}/api/openmedia/raw?root=trip&path=${encodedPath}`;

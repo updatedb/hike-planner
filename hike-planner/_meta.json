@@ -41,10 +41,9 @@
     },
     "environment": {
       "variables": [
-        "AMAP_WEBSERVICE_KEY",
-        "WEB_BASE_URL"
+        "AMAP_WEBSERVICE_KEY"
       ],
-      "description": "读取高德地图 API Key 和 Web 基础 URL（用于轨迹地图链接）"
+      "description": "读取高德地图 API Key"
     },
     "execution": {
       "commands": [
