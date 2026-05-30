@@ -132,3 +132,4 @@
   - [x] ClawHub 发布 v3.3.3 ✅ (k979n3a5v8ac32hc1ynk74pe5h87nz7f)
 - [x] v3.3.4: 爬升阈值3m→0.5m + 坐标精度压缩+大文件采样 + gpx统一阈值 ✅
   - [x] ClawHub 发布 v3.3.4 ✅ (k97arcn8zt857qe7crn1f8wx6587nnf8)
+- [x] GitHub README.md: 项目介绍 + 价值定位 + 截图 + 快速开始 ✅
