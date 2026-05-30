@@ -3,6 +3,7 @@
 > **一站式徒步出行规划 Skill** — 输入目的地和日期，10 分钟内生成包含交通、酒店、徒步路线、人文介绍、装备清单、轨迹地图的完整出行计划。
 
 [![Version](https://img.shields.io/badge/version-3.3.4-green)](#)
+[![ClawHub](https://img.shields.io/badge/ClawHub-hike--planner-orange)](https://clawhub.ai/updatedb/hike-planner)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 ---
