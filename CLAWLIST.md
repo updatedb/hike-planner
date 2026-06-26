@@ -133,3 +133,13 @@
 - [x] v3.3.4: 爬升阈值3m→0.5m + 坐标精度压缩+大文件采样 + gpx统一阈值 ✅
   - [x] ClawHub 发布 v3.3.4 ✅ (k97arcn8zt857qe7crn1f8wx6587nnf8)
 - [x] GitHub README.md: 项目介绍 + 价值定位 + 截图 + 快速开始 ✅
+- [x] v3.3.5: 安全修复 — 7项SkillSpector发现 + SKILL.md改进 ✅
+  - [x] execSync → execFileSync 防命令注入 ✅
+  - [x] 文件路径范围验证 + 扩展名白名单 ✅
+  - [x] GPX/媒体导入/短信解析/输出目录 添加用户确认 ✅
+  - [x] GPS坐标模式 + CDN资源 隐私警告 ✅
+  - [x] 轨迹地图HTML 隐私横幅 ✅
+  - [x] hike-select → hike-config(设置) + hike-select(选行程) ✅
+  - [x] 新增 hike-import 命令 ✅
+  - [x] SKILL.md 新增隐私与安全章节 ✅
+  - [x] 发布到 ClawHub ✅ (k97cayy11dcwer6vx3j7p9k2hx89d4tq)
